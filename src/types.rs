@@ -38,11 +38,18 @@ pub struct ArcIdentifier {
     index: i32,
 }
 
+#[serde(untagged)]
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ValueType {
+    EnvironmentVal(i32),
+    LocalVal(ArcIdentifier),
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ArcSource {
     #[serde(rename(deserialize = "type"))]
     s_type: String,
-    val: ArcIdentifier,
+    val: ValueType,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
