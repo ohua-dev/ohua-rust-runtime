@@ -10,7 +10,8 @@ use std::thread;
 use std::sync::mpsc;
 
 
-fn generate_dummy() -> OhuaData {
+fn generate_ohuadata() -> OhuaData {
+    // CAVEATS: make sure the operator vector is sorted by operatorId!
     OhuaData {
         graph: DFGraph {
             operators: vec![Operator {
@@ -18,7 +19,7 @@ fn generate_dummy() -> OhuaData {
                                 operatorType: OperatorType {
                                     qbNamespace: vec![String::from("hello")],
                                     qbName: String::from("calc"),
-                                    func: Box::new(hello::calc),
+                                    func: Box::new(calc_wrapped),
                                 },
                             },
                             Operator {
@@ -26,7 +27,7 @@ fn generate_dummy() -> OhuaData {
                                 operatorType: OperatorType {
                                     qbNamespace: vec![String::from("hello")],
                                     qbName: String::from("world"),
-                                    func: Box::new(hello::world),
+                                    func: Box::new(world_wrapped),
                                 },
                             }],
             arcs: vec![Arc {
@@ -67,6 +68,7 @@ fn generate_dummy() -> OhuaData {
 
 
 fn calc_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
+    // this function stays always almost the same. Only name, function call and argument extraction have to be generated
     let arg1 = Box::from(args.pop().unwrap());
 
     let res = Box::new(hello::calc(*arg1));
@@ -84,25 +86,25 @@ fn world_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
 
 
 fn main() {
-    // let's just assume this was somehow extracted/generated
-    let deserialized_data = generate_dummy();
+    // let's just assume this function will be generated
+    let runtime_data = generate_ohuadata();
 
     // instantiate the operator(s)
     let mut operators: Vec<OhuaOperator> = Vec::new();
 
-    // imagine this to be a for-loop someday
-    operators.push(OhuaOperator {
-                       input: vec![],
-                       output: vec![],
-                       func: calc_wrapped,
-                   });
-    operators.push(OhuaOperator {
-                       input: vec![],
-                       output: vec![],
-                       func: world_wrapped,
-                   });
+    // statically fill the operator struct
+    for op in runtime_data.graph.operators {
+        operators.push(OhuaOperator {
+                           input: vec![],
+                           output: vec![],
+                           func: op.operatorType.func,
+                       })
+    }
+
+    // for arc in runtime_data.graph.arcs {}
 
     // channel creation
+    // TODO: rework
     let (insertion_point, r1) = mpsc::channel();
     operators[0].input.push(r1);
     let (s2, r2) = mpsc::channel();
@@ -111,7 +113,7 @@ fn main() {
     let (s3, output_port) = mpsc::channel();
     operators[1].output.push(s3);
 
-    // thread spawning
+    // thread spawning -- static
     for op in operators.drain(..) {
         thread::spawn(move || {
             // receive
@@ -128,6 +130,7 @@ fn main() {
         });
     }
 
+    // the following is purely for testing
     // providing input to the DFG
     insertion_point.send(Box::from(Box::new(3))).unwrap();
 

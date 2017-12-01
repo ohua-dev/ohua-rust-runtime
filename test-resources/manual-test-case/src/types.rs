@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use runtime::GenericType;
 
 pub struct OhuaData {
     pub graph: DFGraph,
@@ -20,7 +21,7 @@ pub struct Operator {
 pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     pub qbName: String,
-    pub func: Box<Fn(i32) -> i32>,
+    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Box<GenericType>>>,
 }
 
 pub struct Arc {
