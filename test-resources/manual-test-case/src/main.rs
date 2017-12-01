@@ -1,93 +1,23 @@
 #![allow(unused_variables)]
 
 mod types;
-mod hello;
 mod runtime;
-use types::*;
+mod wrappers;
+mod ohuadata;
+
+// has to be here, references the dev project (maybe refactor to use it as extern_crate?)
+mod hello;
+
 use runtime::*;
 
 use std::thread;
 use std::sync::mpsc;
 
 
-fn generate_ohuadata() -> OhuaData {
-    // CAVEATS: make sure the operator vector is sorted by operatorId!
-    OhuaData {
-        graph: DFGraph {
-            operators: vec![Operator {
-                                operatorId: 1,
-                                operatorType: OperatorType {
-                                    qbNamespace: vec![String::from("hello")],
-                                    qbName: String::from("calc"),
-                                    func: Box::new(calc_wrapped),
-                                },
-                            },
-                            Operator {
-                                operatorId: 2,
-                                operatorType: OperatorType {
-                                    qbNamespace: vec![String::from("hello")],
-                                    qbName: String::from("world"),
-                                    func: Box::new(world_wrapped),
-                                },
-                            }],
-            arcs: vec![Arc {
-                           target: ArcIdentifier {
-                               operator: 1,
-                               index: 0,
-                           },
-                           source: ArcSource {
-                               s_type: String::from("env"),
-                               val: ValueType::EnvironmentVal(0),
-                           },
-                       },
-                       Arc {
-                           target: ArcIdentifier {
-                               operator: 2,
-                               index: 0,
-                           },
-                           source: ArcSource {
-                               s_type: String::from("local"),
-                               val: ValueType::LocalVal(ArcIdentifier {
-                                                            operator: 1,
-                                                            index: -1,
-                                                        }),
-                           },
-                       }],
-        },
-        mainArity: 0,
-        sfDependencies: vec![SfDependency {
-                                 qbNamespace: vec![String::from("hello")],
-                                 qbName: String::from("calc"),
-                             },
-                             SfDependency {
-                                 qbNamespace: vec![String::from("hello")],
-                                 qbName: String::from("world"),
-                             }],
-    }
-}
-
-
-fn calc_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
-    // this function stays always almost the same. Only name, function call and argument extraction have to be generated
-    let arg1 = Box::from(args.pop().unwrap());
-
-    let res = Box::new(hello::calc(*arg1));
-
-    vec![Box::from(res)]
-}
-
-fn world_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
-    let arg1 = Box::from(args.pop().unwrap());
-
-    let res = Box::new(hello::world(*arg1));
-
-    vec![Box::from(res)]
-}
-
 
 fn main() {
     // let's just assume this function will be generated
-    let runtime_data = generate_ohuadata();
+    let runtime_data = ohuadata::generate();
 
     // instantiate the operator(s)
     let mut operators: Vec<OhuaOperator> = Vec::new();
@@ -101,8 +31,6 @@ fn main() {
                        })
     }
 
-    // for arc in runtime_data.graph.arcs {}
-
     // channel creation
     // TODO: rework
     let (insertion_point, r1) = mpsc::channel();
@@ -112,6 +40,15 @@ fn main() {
     operators[1].input.push(r2);
     let (s3, output_port) = mpsc::channel();
     operators[1].output.push(s3);
+
+    for arc in runtime_data
+            .graph
+            .arcs
+            .iter()
+            .filter(|x| x.source.s_type == String::from("env")) {
+        let (s, r) = mpsc::channel::<Box<GenericType>>();
+        // place channel correctly
+    }
 
     // thread spawning -- static
     for op in operators.drain(..) {
@@ -130,7 +67,7 @@ fn main() {
         });
     }
 
-    // the following is purely for testing
+    // ------------ the following is purely for testing ------------
     // providing input to the DFG
     insertion_point.send(Box::from(Box::new(3))).unwrap();
 
