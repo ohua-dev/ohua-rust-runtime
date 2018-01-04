@@ -35,15 +35,14 @@ fn main() {
 
     // =========================== channel creation and placement ===========================
 
-    // main argument arcs umformen
+    // main argument arcs umformen                                              - done
     // pro local arc channel einpflegen (mittels iter-search im Vec)
     // datenstruktur umkrempeln und umwandeln (in Runtime-Structure einbauen)
     // Datenstruktur umbauen
 
-
     let mut channels: Vec<(HashMap<u32, mpsc::Receiver<Box<GenericType>>>, HashMap<u32, Vec<mpsc::Sender<Box<GenericType>>>>)> = Vec::with_capacity(operators.len());
 
-    for _ in 0..operators.len() w{
+    for _ in 0..operators.len() {
         // are you fkin' serious
         channels.push((HashMap::new(), HashMap::new()));
     }
@@ -82,10 +81,6 @@ fn main() {
         }
     }
 
-    // env sources...
-    let (insertion_point, r) = mpsc::channel();
-    channels[0].0.insert(0, r);
-
     // output port
     let (s, output_port) = mpsc::channel();
     channels[1].1.insert(0, vec![s]);
@@ -123,18 +118,16 @@ fn main() {
             // call & send
             let mut results = (op.func)(args);
             for elem in results.drain(..).enumerate() {
-                if op.output[elem.0].len() > 1 {
-                    cloning_send(elem.1, &op.output[elem.0]);
-                } else {
+                // if op.output[elem.0].len() > 1 {
+                //     cloning_send(elem.1, &op.output[elem.0]);
+                // } else {
                     op.output[elem.0][0].send(elem.1).unwrap();
-                }
+                // }
             }
         });
     }
 
     // ============ the following is purely for testing ============
-    // providing input to the DFG
-    insertion_point.send(Box::from(Box::new(3))).unwrap();
 
     // running...
 

@@ -20,6 +20,14 @@ pub fn generate() -> OhuaData {
                                     qbName: String::from("world"),
                                     func: Box::new(world_wrapped),
                                 },
+                            },
+                            Operator {
+                                operatorId: 3,
+                                operatorType: OperatorType {
+                                    qbNamespace: vec![],
+                                    qbName: String::from("mainarg0"),
+                                    func: Box::new(mainarg0),
+                                },
                             }],
             arcs: vec![Arc {
                            target: ArcIdentifier {
@@ -27,8 +35,11 @@ pub fn generate() -> OhuaData {
                                index: 0,
                            },
                            source: ArcSource {
-                               s_type: String::from("env"),
-                               val: ValueType::EnvironmentVal(0),
+                               s_type: String::from("local"),
+                               val: ValueType::LocalVal(ArcIdentifier {
+                                                            operator: 3,
+                                                            index: -1,
+                                                        }),
                            },
                        },
                        Arc {
