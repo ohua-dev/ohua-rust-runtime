@@ -25,6 +25,6 @@ impl From<Box<i32>> for Box<GenericType> {
 //#[derive(Debug)]
 pub struct OhuaOperator {
     pub input: Vec<Receiver<Box<GenericType>>>,
-    pub output: Vec<Sender<Box<GenericType>>>,
+    pub output: Vec<Vec<Sender<Box<GenericType>>>>,
     pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Box<GenericType>>>,
 }

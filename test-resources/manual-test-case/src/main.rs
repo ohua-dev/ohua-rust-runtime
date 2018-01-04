@@ -33,29 +33,28 @@ fn main() {
                        })
     }
 
-    // channel creation
-    // TODO: rework
-    let (insertion_point, r1) = mpsc::channel();
-    operators[0].input.push(r1);
-    let (s2, r2) = mpsc::channel();
-    operators[0].output.push(s2);
-    operators[1].input.push(r2);
-    let (s3, output_port) = mpsc::channel();
-    operators[1].output.push(s3);
+    // =========================== channel creation and placement ===========================
+
+    // main argument arcs umformen
+    // pro local arc channel einpflegen (mittels iter-search im Vec)
+    // datenstruktur umkrempeln und umwandeln (in Runtime-Structure einbauen)
+    // Datenstruktur umbauen
+
 
     let mut channels: Vec<(HashMap<u32, mpsc::Receiver<Box<GenericType>>>, HashMap<u32, Vec<mpsc::Sender<Box<GenericType>>>>)> = Vec::with_capacity(operators.len());
 
-    for _ in 0..operators.len() {
+    for _ in 0..operators.len() w{
         // are you fkin' serious
         channels.push((HashMap::new(), HashMap::new()));
     }
 
-    // TODO: Make Arc recognition Enum based(?)
+    // TODO: Make Arc recognition Enum based(?), move this into separate function
     for arc in runtime_data
             .graph
             .arcs
             .iter()
             .filter(|x| x.source.s_type == String::from("local")) {
+        // TODO: write a proper documentation for this data structure!
         let (s, r) = mpsc::channel::<Box<GenericType>>();
 
         // place the receiver
@@ -63,14 +62,15 @@ fn main() {
 
         // place the sender
         if let types::ValueType::LocalVal(ref source) = arc.source.val {
+            // handle case when an operator only has one output arc (specified using "-1" as source)
             let sender_index: u32 = if source.index >= 0 {
                 source.index as u32
             } else {
                 0
             };
 
+            // if there is at least 1 sender in place to transmit the value, just add the sender
             if let Some(target) = channels[(source.operator - 1) as usize].1.get_mut(&sender_index) {
-                // if there is at least 1 sender in place to transmit the value, just add the sender
                 target.push(s);
                 continue;
             }
@@ -78,12 +78,38 @@ fn main() {
             // if no sender is available for that slot (yet), add a new one
             channels[(source.operator - 1) as usize].1.insert(sender_index, vec![s]);
         } else {
-            panic!("Encountered malformed ArcSource, type is `local` but type is EnvironmentVal.");
+            panic!("Encountered malformed ArcSource, is defined as `local` but contains an EnvironmentVal.");
         }
     }
 
-    println!("{:?}", channels);
-    // TODO: now put these into the right operators, (maybe) move upper part to function
+    // env sources...
+    let (insertion_point, r) = mpsc::channel();
+    channels[0].0.insert(0, r);
+
+    // output port
+    let (s, output_port) = mpsc::channel();
+    channels[1].1.insert(0, vec![s]);
+
+    // TODO: move upper part to function
+    for mut op_channels in channels.drain(..).enumerate() {
+        operators[op_channels.0].input = {
+            // extract the receivers, sort them and put them into the `input` vec
+            let mut receivers: Vec<(u32, mpsc::Receiver<Box<GenericType>>)> = (op_channels.1).0.drain().collect();
+            receivers.sort_by(|a, b| a.0.cmp(&b.0));
+            let inputs = receivers.drain(..).map(|x| x.1).collect::<Vec<mpsc::Receiver<Box<GenericType>>>>();
+            inputs
+        };
+
+        operators[op_channels.0].output = {
+            // extract the senders, sort them and put them into the `output` vec
+            let mut senders: Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)> = (op_channels.1).1.drain().collect();
+            senders.sort_by(|a, b| a.0.cmp(&b.0));
+            let outputs = senders.drain(..).map(|x| x.1).collect::<Vec<Vec<mpsc::Sender<Box<GenericType>>>>>();
+            outputs
+        };
+    }
+
+    // ======================== end of channel creation and placement ========================
 
     // thread spawning -- static
     for op in operators.drain(..) {
@@ -97,12 +123,16 @@ fn main() {
             // call & send
             let mut results = (op.func)(args);
             for elem in results.drain(..).enumerate() {
-                op.output[elem.0].send(elem.1).unwrap();
+                if op.output[elem.0].len() > 1 {
+                    cloning_send(elem.1, &op.output[elem.0]);
+                } else {
+                    op.output[elem.0][0].send(elem.1).unwrap();
+                }
             }
         });
     }
 
-    // ------------ the following is purely for testing ------------
+    // ============ the following is purely for testing ============
     // providing input to the DFG
     insertion_point.send(Box::from(Box::new(3))).unwrap();
 
