@@ -7,6 +7,7 @@ extern crate serde;
 extern crate serde_json;
 
 mod types;
+mod typecasts;
 
 use std::fs::File;
 use clap::{App, Arg};
@@ -27,4 +28,12 @@ fn main() {
     let file = File::open(path).unwrap();
 
     let ohua_data: OhuaData = serde_json::from_reader(file).unwrap();
+
+    // TODO:
+    // - alter the ohua_data structure: analyze the structure and output an altered
+    //      version that handles arguments etc. [runtime.rs]
+    // - generate the function wrapper code (requires information about the number
+    //      of function arguments) [wrappers.rs]
+    // - generate typecasts (requires information about the datatypes involved)
+    //      [generictype.rs]
 }
