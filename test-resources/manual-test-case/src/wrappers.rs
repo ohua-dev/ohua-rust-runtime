@@ -21,6 +21,7 @@ pub fn world_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
 
 // TODO: needs to be generated additionally
 // these functions will provide the arguments the main function arguments.
+#[allow(unused_mut)]
 pub fn mainarg0(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
     vec![Box::from(Box::new(3))]
 }

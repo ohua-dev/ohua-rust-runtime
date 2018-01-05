@@ -12,7 +12,44 @@ use runtime::*;
 
 use std::thread;
 use std::sync::mpsc;
-use std::collections::HashMap;
+
+
+fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, recv: mpsc::Receiver<Box<GenericType>>, target: u32) {
+    let mut index: usize = 0;
+
+    for &(ind, _) in recvs.iter() {
+        if ind >= target {
+            index = ind as usize;
+            break;
+        }
+    }
+
+    recvs.insert(index, (target, recv));
+}
+
+fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>, sender: mpsc::Sender<Box<GenericType>>, target: u32) {
+    let mut index: usize = 0;
+    let mut exists = false;
+
+    for &(ind, _) in senders.iter() {
+        if ind == target {
+            index = ind as usize;
+            exists = true;
+            break;
+        } else if ind > target {
+            index = ind as usize;
+            break;
+        }
+    }
+
+    if exists {
+        // if there is at least 1 sender in place to transmit the value, just add the sender
+        senders[index].1.push(sender);
+    } else {
+        // if no sender is available for that slot (yet), add a new one
+        senders.insert(index, (target, vec![sender]));
+    }
+}
 
 
 fn main() {
@@ -35,16 +72,12 @@ fn main() {
 
     // =========================== channel creation and placement ===========================
 
-    // main argument arcs umformen                                              - done
-    // pro local arc channel einpflegen (mittels iter-search im Vec)
-    // datenstruktur umkrempeln und umwandeln (in Runtime-Structure einbauen)
-    // Datenstruktur umbauen
-
-    let mut channels: Vec<(HashMap<u32, mpsc::Receiver<Box<GenericType>>>, HashMap<u32, Vec<mpsc::Sender<Box<GenericType>>>>)> = Vec::with_capacity(operators.len());
+    // TODO: write a proper documentation for this data structure!
+    let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)> = Vec::with_capacity(operators.len());
 
     for _ in 0..operators.len() {
         // are you fkin' serious
-        channels.push((HashMap::new(), HashMap::new()));
+        channels.push((Vec::new(), Vec::new()));
     }
 
     // TODO: Make Arc recognition Enum based(?), move this into separate function
@@ -53,11 +86,10 @@ fn main() {
             .arcs
             .iter()
             .filter(|x| x.source.s_type == String::from("local")) {
-        // TODO: write a proper documentation for this data structure!
         let (s, r) = mpsc::channel::<Box<GenericType>>();
 
         // place the receiver
-        channels[(arc.target.operator - 1) as usize].0.insert(arc.target.index as u32, r);
+        sorted_recv_insertion(&mut channels[(arc.target.operator - 1) as usize].0, r, arc.target.index as u32);
 
         // place the sender
         if let types::ValueType::LocalVal(ref source) = arc.source.val {
@@ -68,14 +100,7 @@ fn main() {
                 0
             };
 
-            // if there is at least 1 sender in place to transmit the value, just add the sender
-            if let Some(target) = channels[(source.operator - 1) as usize].1.get_mut(&sender_index) {
-                target.push(s);
-                continue;
-            }
-
-            // if no sender is available for that slot (yet), add a new one
-            channels[(source.operator - 1) as usize].1.insert(sender_index, vec![s]);
+            sorted_sender_insertion(&mut channels[(source.operator - 1) as usize].1, s, sender_index);
         } else {
             panic!("Encountered malformed ArcSource, is defined as `local` but contains an EnvironmentVal.");
         }
@@ -83,25 +108,13 @@ fn main() {
 
     // output port
     let (s, output_port) = mpsc::channel();
-    channels[1].1.insert(0, vec![s]);
+    channels[1].1.insert(0, (0, vec![s]));
 
     // TODO: move upper part to function
     for mut op_channels in channels.drain(..).enumerate() {
-        operators[op_channels.0].input = {
-            // extract the receivers, sort them and put them into the `input` vec
-            let mut receivers: Vec<(u32, mpsc::Receiver<Box<GenericType>>)> = (op_channels.1).0.drain().collect();
-            receivers.sort_by(|a, b| a.0.cmp(&b.0));
-            let inputs = receivers.drain(..).map(|x| x.1).collect::<Vec<mpsc::Receiver<Box<GenericType>>>>();
-            inputs
-        };
+        operators[op_channels.0].input = (op_channels.1).0.drain(..).unzip::<u32, mpsc::Receiver<Box<GenericType>>, Vec<u32>, Vec<mpsc::Receiver<Box<GenericType>>>>().1;
 
-        operators[op_channels.0].output = {
-            // extract the senders, sort them and put them into the `output` vec
-            let mut senders: Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)> = (op_channels.1).1.drain().collect();
-            senders.sort_by(|a, b| a.0.cmp(&b.0));
-            let outputs = senders.drain(..).map(|x| x.1).collect::<Vec<Vec<mpsc::Sender<Box<GenericType>>>>>();
-            outputs
-        };
+        operators[op_channels.0].output = (op_channels.1).1.drain(..).unzip::<u32, Vec<mpsc::Sender<Box<GenericType>>>, Vec<u32>, Vec<Vec<mpsc::Sender<Box<GenericType>>>>>().1;
     }
 
     // ======================== end of channel creation and placement ========================
