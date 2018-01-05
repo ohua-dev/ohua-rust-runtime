@@ -1,6 +1,16 @@
 #![allow(non_snake_case, dead_code)]
 
-use runtime::GenericType;
+use std::sync::mpsc::{Sender, Receiver};
+use generictype::GenericType;
+
+
+// TODO: I'm unsure whether this fits in here. Technically this structure 
+// is completely different from the other ones below
+pub struct OhuaOperator {
+    pub input: Vec<Receiver<Box<GenericType>>>,
+    pub output: Vec<Vec<Sender<Box<GenericType>>>>,
+    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Box<GenericType>>>,
+}
 
 pub struct OhuaData {
     pub graph: DFGraph,

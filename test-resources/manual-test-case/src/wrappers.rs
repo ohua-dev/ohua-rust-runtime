@@ -1,5 +1,5 @@
 use hello;
-use runtime::*;
+use generictype::*;
 
 pub fn calc_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
     // this function stays always almost the same. Only name, function call and argument extraction have to be generated
@@ -21,7 +21,6 @@ pub fn world_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
 
 // TODO: needs to be generated additionally
 // these functions will provide the arguments the main function arguments.
-#[allow(unused_mut)]
-pub fn mainarg0(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
+pub fn mainarg0(args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
     vec![Box::from(Box::new(3))]
 }

@@ -1,14 +1,15 @@
 #![allow(unused_variables)]
 
 mod types;
-mod runtime;
+mod generictype;
 mod wrappers;
-mod ohuadata;
+mod runtime;
 
 // has to be here, references the dev project (maybe refactor to use it as extern_crate?)
 mod hello;
 
-use runtime::*;
+use generictype::*;
+use types::OhuaOperator;
 
 use std::thread;
 use std::sync::mpsc;
@@ -95,7 +96,7 @@ fn generate_channels(op_count: usize, arcs: &Vec<types::Arc>) -> (Vec<(Vec<(u32,
 
 fn main() {
     // let's just assume this function will be generated
-    let runtime_data = ohuadata::generate();
+    let runtime_data = runtime::generate();
 
     // TODO: Move the Arc generation here in order to be able to allocate enough space for the I/O channels when generating the operator struct
 

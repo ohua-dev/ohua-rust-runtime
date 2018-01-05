@@ -1,30 +1,69 @@
-use std::sync::mpsc::{Sender, Receiver};
+use types::*;
+use wrappers::*;
 
-// introduced because Rust does not allow Trait implementations for types that are defined elsewhere
-#[derive(Debug)]
-pub struct GenericType {}
-
-impl From<Box<GenericType>> for Box<i32> {
-    fn from(arg: Box<GenericType>) -> Self {
-        // raw pointer cast. Quick and dirty. The joke is that the pointer cast
-        // itself is ok as long as both types implement the `Sized` trait (I guess).
-        // Box::from_raw is the unsafe kiddo
-        unsafe { Box::from_raw(Box::into_raw(arg) as *mut i32) }
+pub fn generate() -> OhuaData {
+    // CAVEATS: make sure the operator vector is sorted by operatorId!
+    OhuaData {
+        graph: DFGraph {
+            operators: vec![Operator {
+                                operatorId: 1,
+                                operatorType: OperatorType {
+                                    qbNamespace: vec![String::from("hello")],
+                                    qbName: String::from("calc"),
+                                    func: Box::new(calc_wrapped),
+                                },
+                            },
+                            Operator {
+                                operatorId: 2,
+                                operatorType: OperatorType {
+                                    qbNamespace: vec![String::from("hello")],
+                                    qbName: String::from("world"),
+                                    func: Box::new(world_wrapped),
+                                },
+                            },
+                            Operator {
+                                operatorId: 3,
+                                operatorType: OperatorType {
+                                    qbNamespace: vec![],
+                                    qbName: String::from("mainarg0"),
+                                    func: Box::new(mainarg0),
+                                },
+                            }],
+            arcs: vec![Arc {
+                           target: ArcIdentifier {
+                               operator: 1,
+                               index: 0,
+                           },
+                           source: ArcSource {
+                               s_type: String::from("local"),
+                               val: ValueType::LocalVal(ArcIdentifier {
+                                                            operator: 3,
+                                                            index: -1,
+                                                        }),
+                           },
+                       },
+                       Arc {
+                           target: ArcIdentifier {
+                               operator: 2,
+                               index: 0,
+                           },
+                           source: ArcSource {
+                               s_type: String::from("local"),
+                               val: ValueType::LocalVal(ArcIdentifier {
+                                                            operator: 1,
+                                                            index: -1,
+                                                        }),
+                           },
+                       }],
+        },
+        mainArity: 0,
+        sfDependencies: vec![SfDependency {
+                                 qbNamespace: vec![String::from("hello")],
+                                 qbName: String::from("calc"),
+                             },
+                             SfDependency {
+                                 qbNamespace: vec![String::from("hello")],
+                                 qbName: String::from("world"),
+                             }],
     }
-}
-
-impl From<Box<i32>> for Box<GenericType> {
-    fn from(arg: Box<i32>) -> Self {
-        unsafe { Box::from_raw(Box::into_raw(arg) as *mut GenericType) }
-    }
-}
-
-// TODO: Maybe move things from above to separate file (because it's dynamic)?
-
-// maybe extend this with a name?
-//#[derive(Debug)]
-pub struct OhuaOperator {
-    pub input: Vec<Receiver<Box<GenericType>>>,
-    pub output: Vec<Vec<Sender<Box<GenericType>>>>,
-    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Box<GenericType>>>,
 }
