@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Felix Wittwer <dev@felixwittwer.de>"]
 
 [dependencies]
-clap = "2.27"
+clap = "2.29"
 
 serde = "1.0"
 serde_derive = "1.0"

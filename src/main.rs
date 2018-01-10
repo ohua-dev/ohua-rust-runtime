@@ -29,6 +29,8 @@ fn main() {
 
     let ohua_data: OhuaData = serde_json::from_reader(file).unwrap();
 
+    typecasts::generate_casts(vec!["&str", "u16", "bool"], "");
+
     // TODO:
     // - alter the ohua_data structure: analyze the structure and output an altered
     //      version that handles arguments etc. [runtime.rs]
