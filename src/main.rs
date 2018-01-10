@@ -8,6 +8,7 @@ extern crate serde_json;
 
 mod types;
 mod typecasts;
+mod wrappers;
 
 use std::fs::File;
 use clap::{App, Arg};
@@ -29,7 +30,9 @@ fn main() {
 
     let ohua_data: OhuaData = serde_json::from_reader(file).unwrap();
 
-    typecasts::generate_casts(vec!["&str", "u16", "bool"], "");
+    // typecasts::generate_casts(vec!["&str", "u16", "bool"], "");
+
+    wrappers::wrap_function("hello::world", 4, 3);
 
     // TODO:
     // - alter the ohua_data structure: analyze the structure and output an altered
