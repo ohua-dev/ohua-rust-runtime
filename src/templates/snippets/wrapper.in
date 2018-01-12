@@ -1,3 +1,4 @@
+
 pub fn {escaped_name}_wrapped(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
     {incoming_args}
 

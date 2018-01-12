@@ -32,7 +32,9 @@ fn main() {
 
     // typecasts::generate_casts(vec!["&str", "u16", "bool"], "");
 
-    wrappers::wrap_function("hello::world", 4, 3);
+    // wrappers::wrap_function("hello::world", 4, 3);
+
+    wrappers::generate_wrappers(ohua_data, "wrappers.rs");
 
     // TODO:
     // - alter the ohua_data structure: analyze the structure and output an altered
