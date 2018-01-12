@@ -1,59 +1,59 @@
 #![allow(non_snake_case)]
 // TODO: Maybe refactor the data structures (using serde-rename) to make the field names rust-compliant
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OhuaData {
-    graph: DFGraph,
-    mainArity: i32,
-    sfDependencies: Vec<SfDependency>,
+    pub graph: DFGraph,
+    pub mainArity: i32,
+    pub sfDependencies: Vec<SfDependency>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DFGraph {
-    operators: Vec<Operator>,
-    arcs: Vec<Arc>,
+    pub operators: Vec<Operator>,
+    pub arcs: Vec<Arc>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Operator {
-    operatorId: i32,
-    operatorType: OperatorType,
+    pub operatorId: i32,
+    pub operatorType: OperatorType,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OperatorType {
-    qbNamespace: Vec<String>,
-    qbName: String,
+    pub qbNamespace: Vec<String>,
+    pub qbName: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Arc {
-    target: ArcIdentifier,
-    source: ArcSource,
+    pub target: ArcIdentifier,
+    pub source: ArcSource,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArcIdentifier {
-    operator: i32,
-    index: i32,
+    pub operator: i32,
+    pub index: i32,
 }
 
 #[serde(untagged)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ValueType {
     EnvironmentVal(i32),
     LocalVal(ArcIdentifier),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArcSource {
     #[serde(rename(deserialize = "type"))]
-    s_type: String,
-    val: ValueType,
+    pub s_type: String,
+    pub val: ValueType,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SfDependency {
-    qbNamespace: Vec<String>,
-    qbName: String,
+    pub qbNamespace: Vec<String>,
+    pub qbName: String,
 }
