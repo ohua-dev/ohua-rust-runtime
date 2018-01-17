@@ -34,7 +34,9 @@ fn main() {
 
     // wrappers::wrap_function("hello::world", 4, 3);
 
-    wrappers::generate_wrappers(ohua_data, "wrappers.rs");
+    let altered_ohuadata = wrappers::generate_wrappers(ohua_data, "wrappers.rs");
+
+    println!("{}", altered_ohuadata);
 
     // TODO:
     // - alter the ohua_data structure: analyze the structure and output an altered
