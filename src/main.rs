@@ -9,10 +9,12 @@ extern crate serde_json;
 mod types;
 mod typecasts;
 mod wrappers;
+mod runtime_data;
 
 use std::fs::File;
 use clap::{App, Arg};
 use types::OhuaData;
+use runtime_data::generate_runtime_data;
 
 fn main() {
     let matches = App::new("ohua-rust-runtime")
@@ -36,7 +38,7 @@ fn main() {
 
     let altered_ohuadata = wrappers::generate_wrappers(ohua_data, "wrappers.rs");
 
-    println!("{}", altered_ohuadata);
+    generate_runtime_data(&altered_ohuadata, "");
 
     // TODO:
     // - alter the ohua_data structure: analyze the structure and output an altered
