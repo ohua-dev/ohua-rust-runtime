@@ -30,7 +30,7 @@ pub fn wrap_function(name: &str, incoming_arcs: u16, outgoing_arcs: u16) -> Stri
     skeleton = skeleton.replace("{name}", name).replace("{fn_args}", &fn_args);
 
     // outgoing values (unwrapping from tuple (if necessary) and vec appending)
-    if outgoing_arcs != 1 {
+    if outgoing_arcs > 1 {
         let mut outgoing = String::new();
         for i in 0..outgoing_arcs {
             if i > 0 {
@@ -122,8 +122,8 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> Result<Oh
 
     // let mut altered = ohuadata.clone();
 
-    let first_mainarg = ohuadata.graph.operators.len() as i32;
-    let (mut mainarg_ops, arg_wrappers) = generate_mainarg_wrappers(first_mainarg + 1, &ohuadata);
+    let first_mainarg = (ohuadata.graph.operators.len() + 1) as i32;
+    let (mut mainarg_ops, arg_wrappers) = generate_mainarg_wrappers(first_mainarg, &ohuadata);
     ohuadata.graph.operators.append(&mut mainarg_ops);
 
     for mut arc in ohuadata.graph.arcs.iter_mut() {
