@@ -123,7 +123,7 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> Result<Oh
     // let mut altered = ohuadata.clone();
 
     let first_mainarg = ohuadata.graph.operators.len() as i32;
-    let (mut mainarg_ops, arg_wrappers) = generate_mainarg_wrappers(first_mainarg, &ohuadata);
+    let (mut mainarg_ops, arg_wrappers) = generate_mainarg_wrappers(first_mainarg + 1, &ohuadata);
     ohuadata.graph.operators.append(&mut mainarg_ops);
 
     for mut arc in ohuadata.graph.arcs.iter_mut() {
