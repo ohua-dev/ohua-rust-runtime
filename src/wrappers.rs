@@ -1,4 +1,6 @@
 use std::collections::{HashMap, HashSet};
+use std::io::{Result, Write};
+use std::fs::File;
 
 use types::*;
 
@@ -44,8 +46,8 @@ pub fn wrap_function(name: &str, incoming_arcs: u16, outgoing_arcs: u16) -> Stri
     skeleton
 }
 
-fn analyze_dfg(ohuadata: &OhuaData) -> (HashMap<String, (u16, u16)>, HashSet<String>) {
-    let mut function_map: HashMap<String, (u16, u16)> = HashMap::new();
+fn analyze_dfg(ohuadata: &OhuaData) -> (HashMap<String, (u16, u16, i32)>, HashSet<String>) {
+    let mut function_map: HashMap<String, (u16, u16, i32)> = HashMap::new();
     let mut namespaces = HashSet::new();
 
     for op in &ohuadata.graph.operators {
@@ -66,14 +68,17 @@ fn analyze_dfg(ohuadata: &OhuaData) -> (HashMap<String, (u16, u16)>, HashSet<Str
 
         namespaces.insert(namespace);
         let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str()) + "::" + op.operatorType.qbName.as_str();
-        function_map.insert(fn_name, (in_count, out_count));
+        function_map.insert(fn_name, (in_count, out_count, op.operatorId));
     }
 
     (function_map, namespaces)
 }
 
 fn get_argument(arg_no: i32) -> String {
-    String::from("8")
+    match arg_no {
+        0 => String::from("8"),
+        _ => String::new()
+    }
 }
 
 fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operator>, String) {
@@ -88,13 +93,14 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operato
         wrapper_code.push_str(wrapper.as_str());
 
         // generate new operator for respective argument
-        operators.push(Operator {operatorId: first_id + arg_no, operatorType: OperatorType {qbNamespace: vec![], qbName: format!("mainarg{}", arg_no)}});
+        let fn_name = format!("mainarg{}", arg_no);
+        operators.push(Operator {operatorId: first_id + arg_no, operatorType: OperatorType {qbNamespace: vec![], qbName: fn_name.clone(), func: fn_name}});
     }
 
     (operators, wrapper_code)
 }
 
-pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> OhuaData {
+pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> Result<OhuaData> {
     // analyze the dataflow graph
     let (function_map, namespaces) = analyze_dfg(&ohuadata);
 
@@ -107,6 +113,11 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> OhuaData 
     let mut func_wrapper = String::new();
     for (name, io) in function_map {
         func_wrapper.push_str(wrap_function(name.as_str(), io.0, io.1).as_str());
+
+        // link the function to the ohua data structure
+        if let Ok(pos) = ohuadata.graph.operators.binary_search_by_key(&io.2, |ref op| op.operatorId) {
+            ohuadata.graph.operators[pos].operatorType.func = name.replace("::", "_");
+        }
     }
 
     // let mut altered = ohuadata.clone();
@@ -121,7 +132,11 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> OhuaData 
         }
     }
 
-    println!("{skel}{imp}{func}{args}", skel=skeleton, imp=imports, func=func_wrapper, args=arg_wrappers);
+    File::create(target_file)?.write_fmt(format_args!("{skel}{imp}{func}{args}", 
+                                                      skel=skeleton,
+                                                      imp=imports,
+                                                      func=func_wrapper,
+                                                      args=arg_wrappers))?;
 
-    ohuadata
+    Ok(ohuadata)
 }

@@ -26,6 +26,8 @@ pub struct Operator {
 pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     pub qbName: String,
+    #[serde(default = "empty_fn")]
+    pub func: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -100,7 +102,7 @@ impl fmt::Display for OperatorType {
             namesp += format!("String::from(\"{}\"), ", space).as_str();
         }
 
-        write!(f, "OperatorType {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}", namesp, self.qbName)
+        write!(f, "OperatorType {{qbNamespace: vec![{}], qbName: String::from(\"{}\"), func: Box::new({})}}", namesp, self.qbName, self.func)
     }
 }
 
@@ -140,4 +142,8 @@ impl fmt::Display for SfDependency {
 
         write!(f, "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}", namesp, self.qbName)
     }
+}
+
+fn empty_fn() -> String {
+    "".to_string()
 }
