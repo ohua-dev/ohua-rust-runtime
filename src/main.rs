@@ -36,7 +36,7 @@ fn main() {
     let output = String::from(matches.value_of("target").unwrap());
 
     if let Err(err) = DirBuilder::new().recursive(true).create(output.as_str()) {
-        println!("[Error] Unable to create the target directory. {}", err);
+        eprintln!("[Error] Unable to create the target directory. {}", err);
         process::exit(1);
     }
 
@@ -48,7 +48,7 @@ fn main() {
 
     // generate all necessary type casts for the Arcs
     if let Err(err) = typecasts::generate_casts(&ohua_data.graph.operators, (output.clone() + "/generictype.rs").as_str()) {
-        println!("[Error] Unable to create the generic type file. {}", err);
+        eprintln!("[Error] Unable to create the generic type file. {}", err);
         process::exit(1);
     }
 
@@ -56,14 +56,14 @@ fn main() {
     let altered_ohuadata = match wrappers::generate_wrappers(ohua_data, (output.clone() + "/wrappers.rs").as_str()) {
         Ok(data) => data,
         Err(err) => {
-            println!("[Error] Unable to create the function wrappers. {}", err);
+            eprintln!("[Error] Unable to create the function wrappers. {}", err);
             process::exit(1);
         }
     };
 
     // write the runtime OhuaData structure
-    if let Err(err) = generate_runtime_data(&altered_ohuadata, (output + "/runtime.rs").as_str()) {
-        println!("[Error] Unable to create the runtime data structure file. {}", err);
+    if let Err(err) = generate_runtime_data(altered_ohuadata, (output + "/runtime.rs").as_str()) {
+        eprintln!("[Error] Unable to create the runtime data structure file. {}", err);
         process::exit(1);
     }
 }
