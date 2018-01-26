@@ -1,2 +1,2 @@
-use generictype::*;
+use ohua_runtime::generictype::*;
 

@@ -5,11 +5,8 @@ mod generictype;
 mod wrappers;
 mod runtime;
 
-// has to be here, references the dev project (maybe refactor to use it as extern_crate?)
-mod hello;
-
-use generictype::*;
-use types::OhuaOperator;
+use self::generictype::*;
+use self::types::OhuaOperator;
 
 use std::thread;
 use std::sync::mpsc;
@@ -94,7 +91,7 @@ fn generate_channels(op_count: usize, arcs: &Vec<types::Arc>) -> (Vec<(Vec<(u32,
 }
 
 
-fn main() {
+pub fn ohua_main() {
     // let's just assume this function will be generated
     let runtime_data = runtime::generate();
 

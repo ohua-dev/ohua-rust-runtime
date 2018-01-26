@@ -12,10 +12,22 @@ mod wrappers;
 mod runtime_data;
 
 use std::fs::{File, DirBuilder};
+use std::io::{self, Write};
 use std::process;
 use clap::{App, Arg};
 use types::OhuaData;
 use runtime_data::generate_runtime_data;
+
+
+fn populate_static_files(path: String) -> io::Result<()> {
+    let mod_file = include_bytes!("templates/mod.rs");
+    File::create(path.clone() + "/mod.rs")?.write_all(mod_file)?;
+
+    let type_file = include_bytes!("templates/types.rs");
+    File::create(path.clone() + "/types.rs")?.write_all(type_file)?;
+
+    Ok(())
+}
 
 fn main() {
     let matches = App::new("ohua-rust-runtime")
@@ -33,8 +45,9 @@ fn main() {
         .get_matches();
 
     let path = matches.value_of("input").unwrap();
-    let output = String::from(matches.value_of("target").unwrap());
+    let mut output = String::from(matches.value_of("target").unwrap());
 
+    // TODO: Remove recursive directory creation
     if let Err(err) = DirBuilder::new().recursive(true).create(output.as_str()) {
         eprintln!("[Error] Unable to create the target directory. {}", err);
         process::exit(1);
@@ -45,6 +58,18 @@ fn main() {
     // read the data structure
     let file = File::open(path).unwrap();
     let ohua_data: OhuaData = serde_json::from_reader(file).unwrap();
+
+    // generate the module of the ohua runtime and populate it with the static files
+    output += "/ohua_runtime";
+    if let Err(err) = DirBuilder::new().create(output.as_str()) {
+        eprintln!("[Error] Unable to create the module directory for the ohua runtime. {}", err);
+        process::exit(1);
+    }
+
+    if let Err(err) = populate_static_files(output.clone()) {
+        eprintln!("[Error] The static `ohua_runtime` module folder population failed unexpectedly. {}", err);
+        process::exit(1);
+    }
 
     // generate all necessary type casts for the Arcs
     if let Err(err) = typecasts::generate_casts(&ohua_data.graph.operators, (output.clone() + "/generictype.rs").as_str()) {
