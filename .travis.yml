@@ -1,0 +1,15 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+matrix:
+  allow_failures:
+    - rust: nightly
+script:
+  - cargo build --verbose
+  - cargo run -- testcases/simple_addition/addition.ohuao testcases/simple_addition/src
+  - cd testcases/simple_addition/ && cargo run && cd ../../
+  - cargo run -- testcases/string_manipulation/string_manipulation.ohuao testcases/string_manipulation/src/
+  - cd testcases/string_manipulation/ && cargo run && cd ../../
+

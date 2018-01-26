@@ -1,0 +1,12 @@
+ns some_ns;
+
+use sf strings (gen_s1, gen_s2, append, duplicate, count);
+
+fn main(initial) {
+    let s1 = gen_s1(initial);
+    let s2 = gen_s2(initial);
+
+    let s3 = append(s1, s2);
+    let dup = duplicate(s3);
+    count(dup)
+}

@@ -22,6 +22,11 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
     match fn_name.as_str() {
         "hello::calc" => vec![String::from("i32")],
         "hello::world" => vec![String::from("i32")],
+        "strings::gen_s1" => vec![String::from("i32")],
+        "strings::gen_s2" => vec![String::from("i32")],
+        "strings::append" => vec![String::from("String")],
+        "strings::duplicate" => vec![String::from("String")],
+        "strings::count" => vec![String::from("String")],
         _ => vec![]
     }
 }
