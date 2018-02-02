@@ -129,10 +129,12 @@ pub fn ohua_main() {
 
             // call function & send results
             let mut results = (op.func)(args);
-            for elem in results.drain(..).enumerate() {
-                if op.output.len() > 0 {
-                    // TODO: Handle multiple targets
-                    op.output[elem.0][0].send(elem.1).unwrap();
+            for (index, mut element_vec) in results.drain(..).enumerate() {
+                for (arc, msg) in element_vec.drain(..).enumerate() {
+                    // TODO: What was this check good for? Can be removed?
+                    if op.output.len() > 0 {
+                        op.output[index][arc].send(msg).unwrap();
+                    }
                 }
             }
         });

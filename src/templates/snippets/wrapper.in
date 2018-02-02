@@ -1,5 +1,5 @@
 
-pub fn {escaped_name}(mut args: Vec<Box<GenericType>>) -> Vec<Box<GenericType>> {
+pub fn {escaped_name}(mut args: Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>> {
     {incoming_args}
 
     let res = {name}({fn_args});

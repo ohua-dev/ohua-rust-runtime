@@ -1,13 +1,12 @@
 #![allow(non_snake_case, dead_code)]
 
-use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc::{Receiver, Sender};
 use ohua_runtime::generictype::GenericType;
-
 
 pub struct OhuaOperator {
     pub input: Vec<Receiver<Box<GenericType>>>,
     pub output: Vec<Vec<Sender<Box<GenericType>>>>,
-    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Box<GenericType>>>,
+    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
 }
 
 pub struct OhuaData {
@@ -29,7 +28,7 @@ pub struct Operator {
 pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     pub qbName: String,
-    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Box<GenericType>>>,
+    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
 }
 
 pub struct Arc {
