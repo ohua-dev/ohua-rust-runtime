@@ -10,6 +10,6 @@ script:
   - cargo build --verbose
   - cargo run -- testcases/simple_addition/addition.ohuao testcases/simple_addition/src
   - cd testcases/simple_addition/ && cargo run && cd ../../
-  - cargo run -- testcases/string_manipulation/string_manipulation.ohuao testcases/string_manipulation/src/
-  - cd testcases/string_manipulation/ && cargo run && cd ../../
+  - cargo run -- testcases/argument_clone/argument_clone.ohuao testcases/argument_clone/src/
+  - cd testcases/argument_clone/ && cargo run && cd ../../
 
