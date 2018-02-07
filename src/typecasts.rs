@@ -28,6 +28,8 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
         "hello::world" => vec![String::from("i32")],
         "strings::gen_string" => vec![String::from("i32")],
         "strings::count_strings" => vec![String::from("String")],
+        "mainclone::calc" => vec![String::from("i32")],
+        "mainclone::double" => vec![String::from("i32")],
         _ => vec![],
     }
 }

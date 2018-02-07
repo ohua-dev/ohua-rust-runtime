@@ -1,0 +1,8 @@
+ns some_ns;
+
+use sf mainclone (calc, double);
+
+fn main(arg) {
+    let res = calc(arg, arg);
+    double(res)
+}
