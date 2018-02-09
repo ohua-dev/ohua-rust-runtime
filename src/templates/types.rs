@@ -18,6 +18,7 @@ pub struct OhuaData {
 pub struct DFGraph {
     pub operators: Vec<Operator>,
     pub arcs: Vec<Arc>,
+    pub return_arc: ArcIdentifier,
 }
 
 pub struct Operator {

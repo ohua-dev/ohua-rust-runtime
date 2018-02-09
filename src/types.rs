@@ -92,7 +92,7 @@ impl fmt::Display for DFGraph {
             arcs += format!("{}, ", arc).as_str();
         }
 
-        write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}]}}", ops, arcs)
+        write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], return_arc: {}}}", ops, arcs, &self.return_arc)
     }
 }
 

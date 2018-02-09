@@ -54,11 +54,12 @@ pub fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<us
     } else {
         // TODO: Remove this hack when issue #1 is resolved
         if outgoing_arcs.len() == 0 {
-            skeleton = skeleton.replace("{outgoing_args}", "vec![Box::from(Box::new(res))]");
+            // return an empty vec when the value is unused
+            skeleton = skeleton.replace("{outgoing_args}", ""); // "vec![Box::from(Box::new(res))]");
         } else {
             let count = outgoing_arcs[0];
             // the arguments are cloned when necessary
-            if count > 0 {
+            if count > 1 {
                 outgoing.push_str(
                     format!(
                         "vec![{}]",
@@ -91,6 +92,7 @@ fn analyze_dfg(
         // the second the number of arcs originating from that position
         let mut out_count: Vec<(i32, usize)> = Vec::new();
 
+        // check which arcs target the operator and which Arcs describe this Operator as their local source
         for arc in &ohuadata.graph.arcs {
             if arc.target.operator == op.operatorId {
                 in_count += 1;
@@ -110,6 +112,21 @@ fn analyze_dfg(
                         Err(pos) => out_count.insert(pos, (index, 1)),
                     }
                 },
+            }
+        }
+
+        // check the special return value field to account for the Arc that will move the computed result out of the DFG
+        if ohuadata.graph.return_arc.operator == op.operatorId {
+            // basically do the same as above, insert the information about the outgoing arc into the data structure
+            let index = if ohuadata.graph.return_arc.index >= 0 {
+                ohuadata.graph.return_arc.index
+            } else {
+                0
+            };
+
+            match out_count.binary_search_by_key(&index, |x| x.0) {
+                Ok(pos) => out_count[pos].1 += 1,
+                Err(pos) => out_count.insert(pos, (index, 1)),
             }
         }
 
