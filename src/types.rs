@@ -14,17 +14,22 @@ pub struct OhuaData {
 pub struct DFGraph {
     pub operators: Vec<Operator>,
     pub arcs: Vec<Arc>,
+    pub return_arc: ArcIdentifier,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Operator {
+    #[serde(rename(deserialize = "id"))]
     pub operatorId: i32,
+    #[serde(rename(deserialize = "type"))]
     pub operatorType: OperatorType,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OperatorType {
+    #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,
+    #[serde(rename(deserialize = "name"))]
     pub qbName: String,
     #[serde(default = "empty_fn")]
     pub func: String,
@@ -58,7 +63,9 @@ pub struct ArcSource {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SfDependency {
+    #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,
+    #[serde(rename(deserialize = "name"))]
     pub qbName: String,
 }
 
