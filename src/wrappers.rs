@@ -34,8 +34,6 @@ pub fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<us
     // outgoing values (unwrapping from tuple (if necessary) and vec appending)
     let mut outgoing = String::new();
 
-    println!("Wrapping {}: {:?}", name, outgoing_arcs);
-
     // do not unpack the tuple if there is only one retval!
     if outgoing_arcs.len() > 1 {
         for (index, count) in outgoing_arcs.drain(..).enumerate() {
@@ -77,17 +75,6 @@ pub fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<us
         skeleton = skeleton.replace("{outgoing_args}", &outgoing);
     }
 
-    // if outgoing_arcs.len() > 1 {
-    //     for i in 0..outgoing_arcs {
-    //         if i > 0 {
-    //         outgoing.push_str(", ")
-    //         }
-    //         outgoing.push_str(format!("Box::from(Box::new(res.{}))", i).as_ref());
-    //     }
-    // } else {
-    //
-    // }
-
     skeleton
 }
 
@@ -119,18 +106,11 @@ fn analyze_dfg(
                     };
 
                     match out_count.binary_search_by_key(&index, |x| x.0) {
-                        Ok(pos) => {
-                            println!("Incrementing pos {} -- was {}.", pos, out_count[pos].1);
-                            out_count[pos].1 += 1
-                        }
-                        Err(pos) => {
-                            println!("Inserting 1 at {}", pos);
-                            out_count.insert(pos, (index, 1))
-                        }
+                        Ok(pos) => out_count[pos].1 += 1,
+                        Err(pos) => out_count.insert(pos, (index, 1)),
                     }
                 },
             }
-            println!("{:?}", out_count);
         }
 
         let namespace = op.operatorType
@@ -168,10 +148,37 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operato
     let mut wrapper_code = String::new();
 
     for arg_no in 0..ohuadata.mainArity {
+        // find out, whether the mainarg has to be cloned
+        let num_uses = ohuadata.graph.arcs.iter().fold(0, |acc, ref x| {
+            if let ValueType::EnvironmentVal(e) = x.source.val {
+                if e == arg_no {
+                    return acc + 1;
+                }
+            }
+            acc
+        });
+
         // generate wrapper code
-        let wrapper = String::from(template)
-            .replace("{n}", format!("{}", arg_no).as_str())
-            .replace("{argument}", get_argument(arg_no).as_str());
+        let mut wrapper = String::from(template).replace("{n}", format!("{}", arg_no).as_str());
+
+        // there is an optimization: unused mainargs will not be wrapped!
+        match num_uses {
+            0 => continue,
+            1 => {
+                wrapper = wrapper.replace(
+                    "{argument}",
+                    format!("Box::from(Box::new({}))", get_argument(arg_no)).as_str(),
+                )
+            }
+            _ => {
+                wrapper = wrapper.replace(
+                    "{argument}",
+                    format!("Box::from(Box::new({}.clone())), ", get_argument(arg_no))
+                        .repeat(num_uses)
+                        .as_str(),
+                )
+            }
+        }
         wrapper_code.push_str(wrapper.as_str());
 
         // generate new operator for respective argument

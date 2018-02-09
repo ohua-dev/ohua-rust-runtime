@@ -1,4 +1,4 @@
 
 pub fn mainarg{n}(args: Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>> {
-    vec![vec![Box::from(Box::new({argument}))]]
+    vec![vec![{argument}]]
 }
