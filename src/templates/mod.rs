@@ -59,7 +59,6 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
         channels.push((Vec::new(), Vec::new()));
     }
 
-    // TODO: Make Arc recognition Enum based(?), move this into separate function
     for arc in arcs
             .iter()
             .filter(|x| x.source.s_type == String::from("local")) {
@@ -92,17 +91,16 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
     };
 
     sorted_sender_insertion(&mut channels[(return_arc.operator - 1) as usize].1, s, sender_index);
-    // channels[return_arc.operator - 1].1.insert(0, (0, vec![s]));
 
     (channels, output_port)
 }
 
 
 pub fn ohua_main() {
-    // let's just assume this function will be generated
     let runtime_data = runtime::generate();
 
-    // TODO: Move the Arc generation here in order to be able to allocate enough space for the I/O channels when generating the operator struct
+    // TODO: [Optimization] Move the Arc generation here in order to be able to
+    // allocate enough space for the I/O channels when generating the operator struct
 
     // instantiate the operator vector with space for exactly n operators
     let mut operators: Vec<OhuaOperator> = Vec::with_capacity(runtime_data.graph.operators.len());
@@ -153,5 +151,5 @@ pub fn ohua_main() {
     let res = output_port.recv().unwrap();
 
     // the following is purely for testing
-    println!("Output: {:?}", Box::<i32>::from(res));
+    println!("Output: {}", Box::<i32>::from(res));
 }
