@@ -183,7 +183,7 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: 
             _ => {
                 wrapper = wrapper.replace(
                     "{argument}",
-                    format!("Box::from(Box::new({}.clone())), ", "arg".repeat(num_uses).as_str()).as_str())
+                    format!("Box::from(Box::new({}.clone())), ", "arg").repeat(num_uses).as_str())
             }
         }
         wrapper_code.push_str(wrapper.as_str());
