@@ -6,7 +6,7 @@ mod wrappers;
 mod runtime;
 
 use self::generictype::*;
-use self::types::{OhuaOperator, ArcIdentifier, Arc, ValueType};
+use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType};
 
 use std::thread;
 use std::sync::mpsc;
@@ -50,9 +50,10 @@ fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericT
 }
 
 
-fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifier) -> (Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
+fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifier, input_targets: &Vec<ArcIdentifier>) -> (Vec<mpsc::Sender<Box<GenericType>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
     // TODO: write a proper documentation for this data structure!
     let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)> = Vec::with_capacity(op_count);
+    let mut input_chans = Vec::with_capacity(input_targets.len());
 
     for _ in 0..op_count {
         // are you fkin' serious
@@ -82,6 +83,14 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
         }
     }
 
+    // place the input ports, if any
+    for target in input_targets {
+        let (sx, rx) = mpsc::channel();
+
+        sorted_recv_insertion(&mut channels[(target.operator - 1) as usize].0, rx, target.index as u32);
+        input_chans.push(sx);
+    }
+
     // place the output port
     let (s, output_port) = mpsc::channel();
     let sender_index: u32 = if return_arc.index >= 0 {
@@ -92,11 +101,11 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
 
     sorted_sender_insertion(&mut channels[(return_arc.operator - 1) as usize].1, s, sender_index);
 
-    (channels, output_port)
+    (input_chans, channels, output_port)
 }
 
 
-pub fn ohua_main() {
+pub fn ohua_main({input_args}) -> {return_type} {
     let runtime_data = runtime::generate();
 
     // TODO: [Optimization] Move the Arc generation here in order to be able to
@@ -115,7 +124,7 @@ pub fn ohua_main() {
     }
 
     // create and place channels for the arcs specified
-    let (mut channels, output_port) = generate_channels(operators.len(), &runtime_data.graph.arcs, &runtime_data.graph.return_arc);
+    let (input_ports, mut channels, output_port) = generate_channels(operators.len(), &runtime_data.graph.arcs, &runtime_data.graph.return_arc, &runtime_data.graph.input_targets);
 
     for mut op_channels in channels.drain(..).enumerate() {
         operators[op_channels.0].input = (op_channels.1).0.drain(..).unzip::<u32, mpsc::Receiver<Box<GenericType>>, Vec<u32>, Vec<mpsc::Receiver<Box<GenericType>>>>().1;
@@ -145,11 +154,13 @@ pub fn ohua_main() {
         });
     }
 
+    // provide the operators with input from the function arguments, if any
+    {send_input}
     // running...
 
     // finished! Gather output
     let res = output_port.recv().unwrap();
 
-    // the following is purely for testing
-    println!("Output: {}", Box::<i32>::from(res));
+    // return the result
+    *Box::<{return_type}>::from(res)
 }

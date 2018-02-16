@@ -8,10 +8,10 @@ matrix:
     - rust: nightly
 script:
   - cargo build --verbose
-  - cargo run -- testcases/simple_addition/addition.ohuao testcases/simple_addition/src
+  - cargo run -- testcases/simple_addition/addition.ohuao testcases/simple_addition/addition.type-dump testcases/simple_addition/src
   - cd testcases/simple_addition/ && cargo run && cd ../../
-  - cargo run -- testcases/argument_clone/argument_clone.ohuao testcases/argument_clone/src/
+  - cargo run -- testcases/argument_clone/argument_clone.ohuao testcases/argument_clone/argument_clone.type-dump testcases/argument_clone/src/
   - cd testcases/argument_clone/ && cargo run && cd ../../
-  - cargo run -- testcases/mainarg_clone/mainarg_cloning.ohuao testcases/mainarg_clone/src/
+  - cargo run -- testcases/mainarg_clone/mainarg_cloning.ohuao testcases/mainarg_clone/mainarg_cloning.type-dump testcases/mainarg_clone/src/
   - cd testcases/mainarg_clone/ && cargo run && cd ../../
 

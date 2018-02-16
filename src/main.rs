@@ -10,19 +10,17 @@ mod types;
 mod typecasts;
 mod wrappers;
 mod runtime_data;
+mod modgen;
 
 use std::fs::{File, DirBuilder};
 use std::io::{self, Write};
 use std::process;
 use clap::{App, Arg};
-use types::OhuaData;
+use types::{OhuaData, AlgorithmArguments};
 use runtime_data::generate_runtime_data;
 
 
 fn populate_static_files(path: String) -> io::Result<()> {
-    let mod_file = include_bytes!("templates/mod.rs");
-    File::create(path.clone() + "/mod.rs")?.write_all(mod_file)?;
-
     let type_file = include_bytes!("templates/types.rs");
     File::create(path.clone() + "/types.rs")?.write_all(type_file)?;
 
@@ -38,13 +36,18 @@ fn main() {
                  .help("Ohua object file in JSON format.")
                  .required(true)
                  .takes_value(true))
+        .arg(Arg::with_name("typeinfo")
+                 .help("Ohua `type_dump` file in JSON format.")
+                 .required(true)
+                 .takes_value(true))
         .arg(Arg::with_name("target")
                  .help("Target path for the Ohua runtime.")
                  .required(true)
                  .takes_value(true))
         .get_matches();
 
-    let path = matches.value_of("input").unwrap();
+    let dfg_path = matches.value_of("input").unwrap();
+    let typeinfo_path = matches.value_of("typeinfo").unwrap();
     let mut output = String::from(matches.value_of("target").unwrap());
 
     // TODO: Remove recursive directory creation
@@ -55,9 +58,17 @@ fn main() {
 
     // ====== start the real work ======
 
-    // read the data structure
-    let file = File::open(path).unwrap();
-    let ohua_data: OhuaData = serde_json::from_reader(file).unwrap();
+    // read the data structures
+    let dfg_file = File::open(dfg_path).unwrap();
+    let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
+    let typeinfo_file = File::open(typeinfo_path).unwrap();
+    let type_data: AlgorithmArguments = serde_json::from_reader(typeinfo_file).unwrap();
+
+    // check whether both mainArity and number of argument types match
+    if ohua_data.mainArity as usize != type_data.argument_types.len() {
+        eprintln!("[Error] The number of arguments specified in the OhuaData structure and the `type_dump` file don't match.");
+        process::exit(1);
+    }
 
     // generate the module of the ohua runtime and populate it with the static files
     output += "/ohua_runtime";
@@ -72,19 +83,24 @@ fn main() {
     }
 
     // generate all necessary type casts for the Arcs
-    if let Err(err) = typecasts::generate_casts(&ohua_data.graph.operators, (output.clone() + "/generictype.rs").as_str()) {
+    if let Err(err) = typecasts::generate_casts(&ohua_data.graph.operators, &type_data, (output.clone() + "/generictype.rs").as_str()) {
         eprintln!("[Error] Unable to create the generic type file. {}", err);
         process::exit(1);
     }
 
     // generate wrapper functions for all operators
-    let altered_ohuadata = match wrappers::generate_wrappers(ohua_data, (output.clone() + "/wrappers.rs").as_str()) {
+    let altered_ohuadata = match wrappers::generate_wrappers(ohua_data, &type_data.argument_types, (output.clone() + "/wrappers.rs").as_str()) {
         Ok(data) => data,
         Err(err) => {
             eprintln!("[Error] Unable to create the function wrappers. {}", err);
             process::exit(1);
         }
     };
+
+    if let Err(err) = modgen::generate_modfile(&type_data, (output.clone() + "/mod.rs").as_str()) {
+        eprintln!("[Error] Unable to create the module file. {}", err);
+        process::exit(1);
+    }
 
     // write the runtime OhuaData structure
     if let Err(err) = generate_runtime_data(altered_ohuadata, (output + "/runtime.rs").as_str()) {

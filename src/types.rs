@@ -3,21 +3,34 @@
 use std::fmt;
 // TODO: Maybe refactor the data structures (using serde-rename) to make the field names rust-compliant
 
-#[derive(Serialize, Deserialize, Debug)]
+/// Data structure used to deserialize the argument types from the `type_dump` file.
+#[derive(Debug, Deserialize)]
+pub struct AlgorithmArguments {
+    #[serde(rename(deserialize = "return"))]
+    pub return_type: String,
+    #[serde(rename(deserialize = "arguments"))]
+    pub argument_types: Vec<String>,
+}
+
+// all following data structures are part of the DFG specification
+
+#[derive(Deserialize, Debug)]
 pub struct OhuaData {
     pub graph: DFGraph,
     pub mainArity: i32,
     pub sfDependencies: Vec<SfDependency>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct DFGraph {
     pub operators: Vec<Operator>,
     pub arcs: Vec<Arc>,
     pub return_arc: ArcIdentifier,
+    #[serde(default)]
+    pub input_targets: Vec<ArcIdentifier>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Operator {
     #[serde(rename(deserialize = "id"))]
     pub operatorId: i32,
@@ -25,7 +38,7 @@ pub struct Operator {
     pub operatorType: OperatorType,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct OperatorType {
     #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,
@@ -35,33 +48,33 @@ pub struct OperatorType {
     pub func: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Arc {
     pub target: ArcIdentifier,
     pub source: ArcSource,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ArcIdentifier {
     pub operator: i32,
     pub index: i32,
 }
 
 #[serde(untagged)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub enum ValueType {
     EnvironmentVal(i32),
     LocalVal(ArcIdentifier),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ArcSource {
     #[serde(rename(deserialize = "type"))]
     pub s_type: String,
     pub val: ValueType,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct SfDependency {
     #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,
@@ -92,7 +105,12 @@ impl fmt::Display for DFGraph {
             arcs += format!("{}, ", arc).as_str();
         }
 
-        write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], return_arc: {}}}", ops, arcs, &self.return_arc)
+        let mut inputs = String::new();
+        for inp in &self.input_targets {
+            inputs += format!("{}, ", inp).as_str();
+        }
+
+        write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], return_arc: {}, input_targets: vec![{}]}}", ops, arcs, &self.return_arc, inputs)
     }
 }
 

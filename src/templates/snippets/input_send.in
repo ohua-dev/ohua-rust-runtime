@@ -1,0 +1,1 @@
+input_ports[{n}].send(Box::from(Box::new(arg{n}))).expect("Input transmission failed!");

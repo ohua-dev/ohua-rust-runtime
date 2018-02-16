@@ -1,4 +1,6 @@
 
-pub fn mainarg{n}(args: Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>> {
+pub fn mainarg{n}(mut args: Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>> {
+    let arg: {arg_type} = *Box::from(args.pop().unwrap());
+
     vec![vec![{argument}]]
 }

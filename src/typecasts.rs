@@ -1,10 +1,9 @@
-use types::Operator;
+use types::{Operator, AlgorithmArguments};
 
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Result, Write};
 
-// maybe return Result?
 fn generate_for(types: HashSet<String>, target_file: &str) -> Result<()> {
     let generic_type_file = include_str!("templates/generictype.rs");
     let typecast = include_str!("templates/snippets/typecast.in");
@@ -34,8 +33,14 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
     }
 }
 
-pub fn generate_casts(operators: &Vec<Operator>, target_file: &str) -> Result<()> {
+pub fn generate_casts(operators: &Vec<Operator>, algo_args: &AlgorithmArguments, target_file: &str) -> Result<()> {
     let mut used_types: HashSet<String> = HashSet::new();
+
+    // also make use of the argument types provided from the `type_dump` file
+    for arg in &algo_args.argument_types {
+        used_types.insert(arg.clone());
+    }
+    used_types.insert(algo_args.return_type.clone());
 
     for op in operators {
         let fn_name = op.operatorType

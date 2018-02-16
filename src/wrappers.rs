@@ -151,14 +151,7 @@ fn analyze_dfg(
     (function_map, namespaces)
 }
 
-fn get_argument(arg_no: i32) -> String {
-    match arg_no {
-        0 => String::from("8"),
-        _ => String::new(),
-    }
-}
-
-fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operator>, String) {
+fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: &Vec<String>) -> (Vec<Operator>, String) {
     let template = include_str!("templates/snippets/mainarg.in");
 
     let mut operators = Vec::new();
@@ -177,6 +170,7 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operato
 
         // generate wrapper code
         let mut wrapper = String::from(template).replace("{n}", format!("{}", arg_no).as_str());
+        wrapper = wrapper.replace("{arg_type}", mainarg_types[arg_no as usize].as_str());
 
         // there is an optimization: unused mainargs will not be wrapped!
         match num_uses {
@@ -184,16 +178,12 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operato
             1 => {
                 wrapper = wrapper.replace(
                     "{argument}",
-                    format!("Box::from(Box::new({}))", get_argument(arg_no)).as_str(),
-                )
+                    format!("Box::from(Box::new({}))", "arg").as_str())
             }
             _ => {
                 wrapper = wrapper.replace(
                     "{argument}",
-                    format!("Box::from(Box::new({}.clone())), ", get_argument(arg_no))
-                        .repeat(num_uses)
-                        .as_str(),
-                )
+                    format!("Box::from(Box::new({}.clone())), ", "arg".repeat(num_uses).as_str()).as_str())
             }
         }
         wrapper_code.push_str(wrapper.as_str());
@@ -213,7 +203,7 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData) -> (Vec<Operato
     (operators, wrapper_code)
 }
 
-pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> Result<OhuaData> {
+pub fn generate_wrappers(mut ohuadata: OhuaData, mainarg_types: &Vec<String>, target_file: &str) -> Result<OhuaData> {
     // analyze the dataflow graph
     let (function_map, namespaces) = analyze_dfg(&ohuadata);
 
@@ -233,16 +223,25 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> Result<Oh
         if let Ok(pos) = ohuadata
             .graph
             .operators
-            .binary_search_by_key(&io.2, |ref op| op.operatorId)
+            .binary_search_by_key(&io.2, |op| op.operatorId)
         {
             ohuadata.graph.operators[pos].operatorType.func = name.replace("::", "_");
         }
     }
 
+    // wrap the main arguments
     let first_mainarg = (ohuadata.graph.operators.len() + 1) as i32;
-    let (mut mainarg_ops, arg_wrappers) = generate_mainarg_wrappers(first_mainarg, &ohuadata);
+    let (mut mainarg_ops, wrapper_code) = generate_mainarg_wrappers(first_mainarg, &ohuadata, mainarg_types);
+
+    // register each mainarg operator as target for an input arc
+    ohuadata.graph.input_targets.reserve(mainarg_ops.len());
+    for op in &mainarg_ops {
+        ohuadata.graph.input_targets.push(ArcIdentifier {operator: op.operatorId, index: 0})
+    }
+
     ohuadata.graph.operators.append(&mut mainarg_ops);
 
+    // rewrite the env arcs for any main arguments encountered
     for mut arc in ohuadata.graph.arcs.iter_mut() {
         if let ValueType::EnvironmentVal(offset) = arc.source.val {
             arc.source = ArcSource {
@@ -260,7 +259,7 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, target_file: &str) -> Result<Oh
         skel = skeleton,
         imp = imports,
         func = func_wrapper,
-        args = arg_wrappers
+        args = wrapper_code
     ))?;
 
     Ok(ohuadata)
