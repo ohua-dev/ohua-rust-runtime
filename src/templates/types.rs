@@ -6,6 +6,7 @@ use ohua_runtime::generictype::GenericType;
 pub struct OhuaOperator {
     pub input: Vec<Receiver<Box<GenericType>>>,
     pub output: Vec<Vec<Sender<Box<GenericType>>>>,
+    pub name: String,
     pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
 }
 
@@ -56,4 +57,16 @@ pub struct ArcSource {
 pub struct SfDependency {
     pub qbNamespace: Vec<String>,
     pub qbName: String,
+}
+
+// TODO: [Performance] Move this to compile time?
+impl OperatorType {
+    pub fn qualified_name(&self) -> String {
+        let mut name = String::new();
+        for ns_part in &self.qbNamespace {
+            name += ns_part.as_str();
+            name += "::";
+        }
+        name + self.qbName.as_str()
+    }
 }

@@ -8,7 +8,7 @@ mod runtime;
 use self::generictype::*;
 use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType};
 
-use std::thread;
+use std::thread::{self, Builder};
 use std::sync::mpsc;
 
 
@@ -119,6 +119,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
         operators.push(OhuaOperator {
                            input: vec![],
                            output: vec![],
+                           name: op.operatorType.qualified_name(),
                            func: op.operatorType.func,
                        })
     }
@@ -134,17 +135,41 @@ pub fn ohua_main({input_args}) -> {return_type} {
 
     // thread spawning
     for op in operators.drain(..) {
-        thread::spawn(move || 'threadloop: loop {
-            // receive arguments
+        Builder::new()
+                .name(op.name.as_str().into())
+                .spawn(move || 'threadloop: loop {
+            let mut exiting = false;
+
+            // receive the arguments from all senders
             let mut args = vec![];
-            for recv in &op.input {
+            for (index, recv) in (&op.input).iter().enumerate() {
                 if let Ok(content) = recv.recv() {
-                    args.push(content);
+                    if !exiting {
+                        args.push(content);
+                    } else {
+                        #[cold]
+                        // when we sre in `exiting` state, we should not be here...
+                        eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
+                        break 'threadloop;
+                    }
                 } else {
-                    // TODO: Implement check whether *all* channels are empty
-                    // when there are no messages left to receive, we are done
-                    break 'threadloop;
+                    // when there are no messages left to receive, this operator is done
+                    if !exiting {
+                        // before entering the `exiting` state, make sure that this is valid behavior
+                        if index > 0 {
+                            #[cold]
+                            eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
+                            break 'threadloop;
+                        } else {
+                            exiting = true;
+                        }
+                    }
                 }
+            }
+
+            // when we are in `exiting` state, kill gracefully
+            if exiting {
+                break 'threadloop;
             }
 
             // call function & send results
@@ -157,7 +182,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
                     }
                 }
             }
-        });
+        }).unwrap();
     }
 
     // provide the operators with input from the function arguments, if any
