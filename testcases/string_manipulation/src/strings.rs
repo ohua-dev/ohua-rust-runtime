@@ -1,9 +1,9 @@
-pub fn gen_s1(_: i32) -> String {
-    String::from("Hello, ")
+pub fn extend_string1(input: String) -> String {
+    format!("From `{}` to this.", input)
 }
 
-pub fn gen_s2(_: i32) -> String {
-    String::from("World!")
+pub fn extend_string2(input: String) -> String {
+    format!(" A big `{}`-extension!", input)
 }
 
 pub fn append(s1: String, s2: String) -> String {
@@ -14,6 +14,6 @@ pub fn duplicate(s: String) -> String {
     s.clone() + s.as_str()
 }
 
-pub fn count(dup: String) -> i32 {
-    dup.len() as i32
+pub fn count(dup: String) -> usize {
+    dup.len()
 }

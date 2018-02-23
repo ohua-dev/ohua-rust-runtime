@@ -1,4 +1,4 @@
-use types::{Operator, AlgorithmArguments};
+use types::{AlgorithmArguments, Operator};
 
 use std::collections::HashSet;
 use std::fs::File;
@@ -27,13 +27,22 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
         "hello::world" => vec![String::from("i32")],
         "strings::gen_string" => vec![String::from("i32")],
         "strings::count_strings" => vec![String::from("String")],
+        "strings::extend_string1" => vec![String::from("String")],
+        "strings::extend_string2" => vec![String::from("String")],
+        "strings::append" => vec![String::from("String")],
+        "strings::duplicate" => vec![String::from("String")],
+        "strings::count" => vec![String::from("String"), String::from("usize")],
         "mainclone::calc" => vec![String::from("i32")],
         "mainclone::double" => vec![String::from("i32")],
         _ => vec![],
     }
 }
 
-pub fn generate_casts(operators: &Vec<Operator>, algo_args: &AlgorithmArguments, target_file: &str) -> Result<()> {
+pub fn generate_casts(
+    operators: &Vec<Operator>,
+    algo_args: &AlgorithmArguments,
+    target_file: &str,
+) -> Result<()> {
     let mut used_types: HashSet<String> = HashSet::new();
 
     // also make use of the argument types provided from the `type_dump` file

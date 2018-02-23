@@ -134,11 +134,17 @@ pub fn ohua_main({input_args}) -> {return_type} {
 
     // thread spawning
     for op in operators.drain(..) {
-        thread::spawn(move || {
+        thread::spawn(move || 'threadloop: loop {
             // receive arguments
             let mut args = vec![];
-            for recv in op.input {
-                args.push(recv.recv().unwrap());
+            for recv in &op.input {
+                if let Ok(content) = recv.recv() {
+                    args.push(content);
+                } else {
+                    // TODO: Implement check whether *all* channels are empty
+                    // when there are no messages left to receive, we are done
+                    break 'threadloop;
+                }
             }
 
             // call function & send results
@@ -156,6 +162,10 @@ pub fn ohua_main({input_args}) -> {return_type} {
 
     // provide the operators with input from the function arguments, if any
     {send_input}
+    // after sending all input data, drop the senders to start the graceful
+    // dissolution of the data flow network
+    drop(input_ports);
+
     // running...
 
     // finished! Gather output
