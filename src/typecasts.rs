@@ -34,6 +34,9 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
         "strings::count" => vec![String::from("String"), String::from("usize")],
         "mainclone::calc" => vec![String::from("i32")],
         "mainclone::double" => vec![String::from("i32")],
+        "tuples::append_to_string" => vec![String::from("String"), String::from("i32")],
+        "tuples::extend_string" => vec![String::from("String")],
+        "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32, String, usize)")],
         _ => vec![],
     }
 }
