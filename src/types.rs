@@ -1,9 +1,10 @@
+//! Data types to represent the dataflow graph and the `type-dump` file.
 #![allow(non_snake_case)]
 
 use std::fmt;
 // TODO: Maybe refactor the data structures (using serde-rename) to make the field names rust-compliant
 
-/// Data structure used to deserialize the argument types from the `type_dump` file.
+/// Data structure used to deserialize the argument types from the `type-dump` file.
 #[derive(Debug, Deserialize)]
 pub struct AlgorithmArguments {
     #[serde(rename(deserialize = "return"))]
@@ -14,6 +15,7 @@ pub struct AlgorithmArguments {
 
 // all following data structures are part of the DFG specification
 
+/// The all-encapsulating OhuaData structure.
 #[derive(Deserialize, Debug)]
 pub struct OhuaData {
     pub graph: DFGraph,
@@ -21,6 +23,7 @@ pub struct OhuaData {
     pub sfDependencies: Vec<SfDependency>,
 }
 
+/// Representation of an Ohua dataflow graph.
 #[derive(Deserialize, Debug)]
 pub struct DFGraph {
     pub operators: Vec<Operator>,
@@ -30,6 +33,7 @@ pub struct DFGraph {
     pub input_targets: Vec<ArcIdentifier>,
 }
 
+/// A single operator of the DFG. Represents a stateful function that is to be called.
 #[derive(Deserialize, Debug)]
 pub struct Operator {
     #[serde(rename(deserialize = "id"))]
@@ -38,6 +42,7 @@ pub struct Operator {
     pub operatorType: OperatorType,
 }
 
+/// The inner operator information such as namespace, function name and link to the respective function.
 #[derive(Deserialize, Debug)]
 pub struct OperatorType {
     #[serde(rename(deserialize = "namespace"))]
@@ -48,18 +53,21 @@ pub struct OperatorType {
     pub func: String,
 }
 
+/// A simple Arc between two points in the graph.
 #[derive(Deserialize, Debug)]
 pub struct Arc {
     pub target: ArcIdentifier,
     pub source: ArcSource,
 }
 
+/// A local Arc endpoint, an operator.
 #[derive(Deserialize, Debug)]
 pub struct ArcIdentifier {
     pub operator: i32,
     pub index: i32,
 }
 
+/// Describes the type of an Arc source. This can either be an environment value _or_ a local value (another operator).
 #[serde(untagged)]
 #[derive(Deserialize, Debug)]
 pub enum ValueType {
@@ -67,6 +75,7 @@ pub enum ValueType {
     LocalVal(ArcIdentifier),
 }
 
+/// Source for an Arc.
 #[derive(Deserialize, Debug)]
 pub struct ArcSource {
     #[serde(rename(deserialize = "type"))]
@@ -74,6 +83,7 @@ pub struct ArcSource {
     pub val: ValueType,
 }
 
+/// Represents a dependency to a stateful function.
 #[derive(Deserialize, Debug)]
 pub struct SfDependency {
     #[serde(rename(deserialize = "namespace"))]

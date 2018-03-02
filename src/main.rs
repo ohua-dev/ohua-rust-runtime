@@ -1,3 +1,7 @@
+//! # The Rust Ohua Runtime Generator
+//!
+//! This program generates a rust runtime for an [Ohua](https://github.com/ohua-dev) program, which can be defined in an `ohuac` file.
+
 #[macro_use]
 extern crate clap;
 
@@ -20,6 +24,8 @@ use types::{OhuaData, AlgorithmArguments};
 use runtime_data::generate_runtime_data;
 
 
+/// This function writes all static files to their respective locations,
+/// returning an error when the write operation exitted unsuccessfully.
 fn populate_static_files(path: String) -> io::Result<()> {
     let type_file = include_bytes!("templates/types.rs");
     File::create(path.clone() + "/types.rs")?.write_all(type_file)?;
@@ -70,13 +76,14 @@ fn main() {
         process::exit(1);
     }
 
-    // generate the module of the ohua runtime and populate it with the static files
+    // generate the module of the ohua runtime
     output += "/ohua_runtime";
     if let Err(err) = DirBuilder::new().create(output.as_str()) {
         eprintln!("[Error] Unable to create the module directory for the ohua runtime. {}", err);
         process::exit(1);
     }
 
+    // populate the module with the static files
     if let Err(err) = populate_static_files(output.clone()) {
         eprintln!("[Error] The static `ohua_runtime` module folder population failed unexpectedly. {}", err);
         process::exit(1);

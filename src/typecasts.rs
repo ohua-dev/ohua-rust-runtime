@@ -1,9 +1,13 @@
+//! Typecasting generation for the `GenericType` type
 use types::{AlgorithmArguments, Operator};
 
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Result, Write};
 
+/// Generates a bidirectional type cast for every type from the given hash set.
+///
+/// Returns an IO Error when opening or writing to a file fails.
 fn generate_for(types: HashSet<String>, target_file: &str) -> Result<()> {
     let generic_type_file = include_str!("templates/generictype.rs");
     let typecast = include_str!("templates/snippets/typecast.in");
@@ -21,6 +25,7 @@ fn generate_for(types: HashSet<String>, target_file: &str) -> Result<()> {
     File::create(target_file)?.write_fmt(format_args!("{}{}", generic_type_file, typecast_file))
 }
 
+/// Currently a dummy function to "extract" the types. Has to be extended everytime with the new cases.
 fn get_argument_types(fn_name: String) -> Vec<String> {
     match fn_name.as_str() {
         "hello::calc" => vec![String::from("i32")],
@@ -41,6 +46,10 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
     }
 }
 
+/// Retrieves and collects all types we have to generate casts for.
+///
+/// The types are retrieved either from the `type-dump` file or from the function headers of the stateful functions.
+/// The returned result is forwarded from the `generate_for` function.
 pub fn generate_casts(
     operators: &Vec<Operator>,
     algo_args: &AlgorithmArguments,

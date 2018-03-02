@@ -1,10 +1,21 @@
+//! Wrapper generator for stateful functions.
+
 use std::collections::{HashMap, HashSet};
 use std::io::{Result, Write};
 use std::fs::File;
 
 use types::*;
 
-pub fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>) -> String {
+/// Generates a wrapper for a single stateful function.
+///
+/// Therefore, the function uses a wrapper template and populates it by adding
+/// * the necessary re-boxing (typecasts) for all input values
+/// * providing the casted arguments to the underlying function
+/// * re-boxing the output values into `GenericType`s and returning them as vector.
+///   Here, the function return values are cloned, when necessary.
+///
+/// Returns a string containing the complete wrapper.
+fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>) -> String {
     let mut skeleton = String::from(include_str!("templates/snippets/wrapper.in"));
     let unpack_arg = "let arg{n} = Box::from(args.pop().unwrap());\n";
 
@@ -55,7 +66,7 @@ pub fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<us
         // TODO: Remove this hack when issue #1 is resolved
         if outgoing_arcs.len() == 0 {
             // return an empty vec when the value is unused
-            skeleton = skeleton.replace("{outgoing_args}", ""); // "vec![Box::from(Box::new(res))]");
+            skeleton = skeleton.replace("{outgoing_args}", "");
         } else {
             let count = outgoing_arcs[0];
             // the arguments are cloned when necessary
@@ -79,6 +90,16 @@ pub fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<us
     skeleton
 }
 
+/// Function that analyzes the DFG provided by the user. Generates a function map
+/// and a set containing all namespaces.
+///
+/// The function map describes, how many incoming and outgoing Arcs an operator has, what
+/// function it belongs to and what the corresponding operator number is.
+/// This information is used to be able to generate correct wrapper code that retrieves all
+/// arguments for a function and provides the correct number of output items (it also allows
+/// to clone returned values as necessary before boxing them).
+///
+/// The hashset of namespaces is used to generate the correct imports to have all functions in scope.
 fn analyze_dfg(
     ohuadata: &OhuaData,
 ) -> (HashMap<String, (usize, Vec<usize>, i32)>, HashSet<String>) {
@@ -151,6 +172,10 @@ fn analyze_dfg(
     (function_map, namespaces)
 }
 
+/// Wraps the arguments provided to the algorithm into an operator to allow on-demand
+/// cloning and a clean integration into the DFG.
+///
+/// Also creates the necessary new operators for the mainarg wrappers.
 fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: &Vec<String>) -> (Vec<Operator>, String) {
     let template = include_str!("templates/snippets/mainarg.in");
 
@@ -203,6 +228,13 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: 
     (operators, wrapper_code)
 }
 
+/// The main entry point to start wrapper generation.
+///
+/// This function analyzes the DFG, generates the necessary imports, function wrappers and
+/// main argument wrappers. In the process, the `OhuaData` structure is rewritten to add
+/// links to the corresponding wrapped functions and add the main argument wrappers.
+///
+/// Returns either an IO error when opening/writing to the file failed or the updated ohua data structure
 pub fn generate_wrappers(mut ohuadata: OhuaData, mainarg_types: &Vec<String>, target_file: &str) -> Result<OhuaData> {
     // analyze the dataflow graph
     let (function_map, namespaces) = analyze_dfg(&ohuadata);
@@ -219,7 +251,7 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, mainarg_types: &Vec<String>, ta
     for (name, io) in function_map {
         func_wrapper.push_str(wrap_function(name.as_str(), io.0, io.1).as_str());
 
-        // link the function to the ohua data structure
+        // link the function to the corresponding operator in the ohua data structure
         if let Ok(pos) = ohuadata
             .graph
             .operators
