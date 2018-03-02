@@ -49,7 +49,7 @@ fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>
     if outgoing_arcs.len() > 1 {
         for (index, count) in outgoing_arcs.drain(..).enumerate() {
             let boxed_arg = format!("Box::from(Box::new(res.{}))", index);
-            let boxed_cloned_arg = format!("Box::from(Box::new(res.{}.clone()))", index);
+            let boxed_cloned_arg = format!("Box::from(Box::new(res.{}.clone())), ", index);
 
             // clone the arguments if necessary
             if count > 1 {
@@ -79,7 +79,7 @@ fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>
                 );
             } else {
                 outgoing.push_str(
-                    format!("vec![{}]", "Box::from(Box::new(res))".repeat(count)).as_ref(),
+                    format!("vec![{}]", "Box::from(Box::new(res))").as_ref(),
                 );
             }
         }

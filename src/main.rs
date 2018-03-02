@@ -16,7 +16,7 @@ mod wrappers;
 mod runtime_data;
 mod modgen;
 
-use std::fs::{File, DirBuilder};
+use std::fs::{remove_dir_all, File, DirBuilder};
 use std::io::{self, Write};
 use std::process;
 use clap::{App, Arg};
@@ -79,8 +79,22 @@ fn main() {
     // generate the module of the ohua runtime
     output += "/ohua_runtime";
     if let Err(err) = DirBuilder::new().create(output.as_str()) {
-        eprintln!("[Error] Unable to create the module directory for the ohua runtime. {}", err);
-        process::exit(1);
+        // Remove the directory if it already exists.
+        if err.kind() == io::ErrorKind::AlreadyExists {
+            if let Err(delete_err) = remove_dir_all(output.as_str()) {
+                eprintln!("[Error] Unable to remove the previously generated runtime folder. {}", delete_err);
+                process::exit(1);
+            } else {
+                // recreate the empty dir after successful deletion
+                if let Err(e) = DirBuilder::new().create(output.as_str()) {
+                    eprintln!("[Error] Unable to create the module directory for the ohua runtime. {}", e);
+                    process::exit(1);
+                }
+            }
+        } else {
+            eprintln!("[Error] Unable to create the module directory for the ohua runtime. {}", err);
+            process::exit(1);
+        }
     }
 
     // populate the module with the static files

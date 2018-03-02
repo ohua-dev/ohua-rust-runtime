@@ -49,7 +49,7 @@ pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     #[serde(rename(deserialize = "name"))]
     pub qbName: String,
-    #[serde(default = "empty_fn")]
+    #[serde(default)]
     pub func: String,
 }
 
@@ -177,8 +177,4 @@ impl fmt::Display for SfDependency {
 
         write!(f, "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}", namesp, self.qbName)
     }
-}
-
-fn empty_fn() -> String {
-    "".to_string()
 }

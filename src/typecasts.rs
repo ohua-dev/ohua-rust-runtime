@@ -41,7 +41,7 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
         "mainclone::double" => vec![String::from("i32")],
         "tuples::append_to_string" => vec![String::from("String"), String::from("i32")],
         "tuples::extend_string" => vec![String::from("String")],
-        "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32, String, usize)")],
+        "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32,String,usize)")],
         _ => vec![],
     }
 }
@@ -56,6 +56,8 @@ pub fn generate_casts(
     target_file: &str,
 ) -> Result<()> {
     let mut used_types: HashSet<String> = HashSet::new();
+
+    // TODO: strip all types of blanks before adding them to the hashset
 
     // also make use of the argument types provided from the `type_dump` file
     for arg in &algo_args.argument_types {

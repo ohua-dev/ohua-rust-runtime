@@ -8,5 +8,5 @@ pub fn extend_string(intermediate: String) -> String {
 
 pub fn output_values(input_number: i32, extended_string: String) -> (i32, String, usize) {
     let length = extended_string.len();
-    (input_number, extended_string, length)
+    (input_number * 2, extended_string, length)
 }

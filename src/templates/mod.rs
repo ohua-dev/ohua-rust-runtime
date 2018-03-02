@@ -177,9 +177,9 @@ pub fn ohua_main({input_args}) -> {return_type} {
             for (index, mut element_vec) in results.drain(..).enumerate() {
                 for (arc, msg) in element_vec.drain(..).enumerate() {
                     // TODO: What was this check good for? Can be removed?
-                    if op.output.len() > 0 {
+                    // if op.output.len() > 0 {
                         op.output[index][arc].send(msg).unwrap();
-                    }
+                    // }
                 }
             }
         }).unwrap();

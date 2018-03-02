@@ -16,5 +16,10 @@ script:
   - cd testcases/mainarg_clone/ && cargo run && cd ../../
   - cargo run -- testcases/string_manipulation/string_manipulation.ohuao testcases/string_manipulation/string_manipulation.type-dump testcases/string_manipulation/src/
   - cd testcases/string_manipulation/ && cargo run && cd ../../
+  - cargo run -- testcases/tuple_values/tuple_values.ohuao testcases/tuple_values/tuple_values.type-dump testcases/tuple_values/src/
+  - # cd testcases/tuple_values/ && cargo run && cd ../../
+#  - cargo run -- testcases/custom_types/custom_types.ohuao testcases/custom_types/custom_types.type-dump testcases/custom_types/src/
+#  - # cd testcases/custom_types/ && cargo run && cd ../../
+
 #  - cargo run -- testcases/tuple_values/tuple_values.ohuao testcases/tuple_values/tuple_values.type-dump testcases/tuple_values/src/
 #  - # cd testcases/tuple_values/ && cargo run && cd ../../
