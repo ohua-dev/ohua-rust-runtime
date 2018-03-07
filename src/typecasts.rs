@@ -41,7 +41,7 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
         "mainclone::double" => vec![String::from("i32")],
         "tuples::append_to_string" => vec![String::from("String"), String::from("i32")],
         "tuples::extend_string" => vec![String::from("String")],
-        "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32,String,usize)")],
+        "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32, String, usize)")],
         "house::move_house" => vec![String::from("house::House"), String::from("String")],
         "house::move_in_one" => vec![String::from("house::House"), String::from("Vec<house::Human>")],
         "house::house_information" => vec![String::from("house::House")],
@@ -65,9 +65,9 @@ pub fn generate_casts(
 
     // also make use of the argument types provided from the `type_dump` file
     for arg in &algo_args.argument_types {
-        used_types.insert(arg.clone());
+        used_types.insert(arg.clone().replace(" ", ""));
     }
-    used_types.insert(algo_args.return_type.clone());
+    used_types.insert(algo_args.return_type.clone().replace(" ", ""));
 
     for op in operators {
         let fn_name = op.operatorType
@@ -77,7 +77,7 @@ pub fn generate_casts(
             + op.operatorType.qbName.as_str();
 
         for occuring_type in get_argument_types(fn_name) {
-            used_types.insert(occuring_type);
+            used_types.insert(occuring_type.replace(" ", ""));
         }
     }
 
