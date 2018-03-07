@@ -61,8 +61,6 @@ pub fn generate_casts(
 ) -> Result<()> {
     let mut used_types: HashSet<String> = HashSet::new();
 
-    // TODO: strip all types of blanks before adding them to the hashset
-
     // also make use of the argument types provided from the `type_dump` file
     for arg in &algo_args.argument_types {
         used_types.insert(arg.clone().replace(" ", ""));

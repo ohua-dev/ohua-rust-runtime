@@ -56,7 +56,6 @@ fn main() {
     let typeinfo_path = matches.value_of("typeinfo").unwrap();
     let mut output = String::from(matches.value_of("target").unwrap());
 
-    // TODO: Remove recursive directory creation
     if let Err(err) = DirBuilder::new().recursive(true).create(output.as_str()) {
         eprintln!("[Error] Unable to create the target directory. {}", err);
         process::exit(1);

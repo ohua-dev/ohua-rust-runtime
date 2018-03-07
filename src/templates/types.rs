@@ -59,7 +59,6 @@ pub struct SfDependency {
     pub qbName: String,
 }
 
-// TODO: [Performance] Move this to compile time?
 impl OperatorType {
     pub fn qualified_name(&self) -> String {
         let mut name = String::new();

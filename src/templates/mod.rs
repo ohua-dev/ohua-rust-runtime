@@ -51,12 +51,16 @@ fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericT
 
 
 fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifier, input_targets: &Vec<ArcIdentifier>) -> (Vec<mpsc::Sender<Box<GenericType>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
-    // TODO: write a proper documentation for this data structure!
+    /* This data structure is used to assign all receivers and senders to the correct operators
+       before the actual runtime is started. Each operator has a pair of senders and receivers,
+       bundled together. After initialization, this structure is consumed and the channels are
+       distributed to the operators
+    */
     let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)> = Vec::with_capacity(op_count);
     let mut input_chans = Vec::with_capacity(input_targets.len());
 
+    // initialize the channel matrix for all operators
     for _ in 0..op_count {
-        // are you fkin' serious
         channels.push((Vec::new(), Vec::new()));
     }
 
@@ -108,7 +112,7 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
 pub fn ohua_main({input_args}) -> {return_type} {
     let runtime_data = runtime::generate();
 
-    // TODO: [Optimization] Move the Arc generation here in order to be able to
+    // TWEAK: [Optimization] Move the Arc generation here in order to be able to
     // allocate enough space for the I/O channels when generating the operator struct
 
     // instantiate the operator vector with space for exactly n operators
@@ -176,10 +180,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
             let mut results = (op.func)(args);
             for (index, mut element_vec) in results.drain(..).enumerate() {
                 for (arc, msg) in element_vec.drain(..).enumerate() {
-                    // TODO: What was this check good for? Can be removed?
-                    // if op.output.len() > 0 {
                         op.output[index][arc].send(msg).unwrap();
-                    // }
                 }
             }
         }).unwrap();
