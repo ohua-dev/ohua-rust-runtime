@@ -102,8 +102,10 @@ fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>
 /// The hashset of namespaces is used to generate the correct imports to have all functions in scope.
 fn analyze_dfg(
     ohuadata: &OhuaData,
-) -> (HashMap<String, (usize, Vec<usize>, i32)>, HashSet<String>) {
-    let mut function_map: HashMap<String, (usize, Vec<usize>, i32)> = HashMap::new();
+) -> (HashMap<String, (usize, Vec<usize>, Vec<i32>)>, HashSet<String>) {
+    // the function map tracks the number of I/O ports a function has as well as the operators associated with a function
+    // NOTE: there might be more than one operator per function
+    let mut function_map: HashMap<String, (usize, Vec<usize>, Vec<i32>)> = HashMap::new();
     let mut namespaces = HashSet::new();
 
     // for each operator in the DFG, check the arcs and count the number of incoming and outgoing arcs
@@ -166,7 +168,13 @@ fn analyze_dfg(
             .drain(..)
             .unzip::<i32, usize, Vec<i32>, Vec<usize>>()
             .1;
-        function_map.insert(fn_name, (in_count, out, op.operatorId));
+        // make sure to not overwrite any pre-existing references to operators
+        if function_map.contains_key(&fn_name) {
+            let function = function_map.get_mut(&fn_name).unwrap();
+            (*function).2.push(op.operatorId);
+        } else {
+            function_map.insert(fn_name, (in_count, out, vec![op.operatorId]));
+        }
     }
 
     (function_map, namespaces)
@@ -251,13 +259,15 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, mainarg_types: &Vec<String>, ta
     for (name, io) in function_map {
         func_wrapper.push_str(wrap_function(name.as_str(), io.0, io.1).as_str());
 
-        // link the function to the corresponding operator in the ohua data structure
-        if let Ok(pos) = ohuadata
-            .graph
-            .operators
-            .binary_search_by_key(&io.2, |op| op.operatorId)
-        {
-            ohuadata.graph.operators[pos].operatorType.func = name.replace("::", "_");
+        // link the function to the corresponding operators in the ohua data structure
+        for op_id in io.2 {
+            if let Ok(pos) = ohuadata
+                .graph
+                .operators
+                .binary_search_by_key(&op_id, |op| op.operatorId)
+            {
+                ohuadata.graph.operators[pos].operatorType.func = name.replace("::", "_");
+            }
         }
     }
 

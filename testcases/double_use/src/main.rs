@@ -5,5 +5,5 @@ fn main() {
     let number = 12;
     let result: i32 = ohua_runtime::ohua_main(number);
 
-    println!("Result of (12 + 12 + 12) * 2: {}", result);
+    println!("Result of ((12 + 12) + 24) * 2: {}", result);
 }
