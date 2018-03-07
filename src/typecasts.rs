@@ -42,6 +42,10 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
         "tuples::append_to_string" => vec![String::from("String"), String::from("i32")],
         "tuples::extend_string" => vec![String::from("String")],
         "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32,String,usize)")],
+        "house::move_house" => vec![String::from("house::House"), String::from("String")],
+        "house::move_in_one" => vec![String::from("house::House"), String::from("Vec<house::Human>")],
+        "house::house_information" => vec![String::from("house::House")],
+        "house::evict_one" => vec![String::from("house::House")],
         _ => vec![],
     }
 }
