@@ -1,0 +1,11 @@
+ns some_ns;
+
+use sf tuple_ret (calculate_string_length, splice_string);
+
+fn main(input_string: String) -> (usize, String, usize) {
+    let old_len = calculate_string_length(input_string);
+    let spliced_str = splice_string(input_string);
+    let new_len = calculate_string_length(spliced_str);
+
+    (old_len, spliced_str, new_len)
+}
