@@ -1,5 +1,5 @@
 //! Typecasting generation for the `GenericType` type
-use types::{AlgorithmArguments, Operator};
+use super::types::{AlgorithmArguments, Operator};
 
 use std::collections::HashSet;
 use std::fs::File;

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Result, Write};
 use std::fs::File;
 
-use types::*;
+use super::types::*;
 
 /// Generates a wrapper for a single stateful function.
 ///

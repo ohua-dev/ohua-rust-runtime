@@ -1,5 +1,5 @@
 //! Runtime `OhuaData` generator
-use types::OhuaData;
+use super::types::OhuaData;
 
 use std::fs::File;
 use std::io::{Result, Write};

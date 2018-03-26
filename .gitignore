@@ -2,3 +2,4 @@ testcases/**/ohua_runtime/
 testcases/**/Cargo.lock
 target/
 **/*.rs.bk
+Cargo.lock
