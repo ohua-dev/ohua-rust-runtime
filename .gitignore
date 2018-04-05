@@ -1,5 +1,7 @@
 testcases/**/ohua_runtime/
 testcases/**/Cargo.lock
+testcases/**/*.ohuao
+testcases/**/*.type-dump
 target/
 **/*.rs.bk
 Cargo.lock
