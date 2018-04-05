@@ -2,5 +2,9 @@
 name = "tuple_return"
 version = "0.1.0"
 authors = ["Felix Wittwer <dev@felixwittwer.de>"]
+build = "../build.rs"
 
 [dependencies]
+
+[build-dependencies]
+ohua_rust_runtime = { path = "../../" }
