@@ -1,25 +1,44 @@
 language: rust
+
 rust:
   - stable
   - beta
   - nightly
+
 matrix:
   allow_failures:
     - rust: nightly
+
+# Caching Haskell stuff so the next build will be fast too.
+cache:
+  directories:
+  - $HOME/.stack
+
+# Ensure necessary system libraries are present
+addons:
+  apt:
+    packages:
+      - libgmp-dev
+
+before_install:
+# Download and unpack the stack executable, then install ohuac and continue
+- mkdir -p ~/.local/bin
+- export PATH=$HOME/.local/bin:$PATH
+- travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+- git clone https://github.com/ohua-dev/ohuac.git ~/ohuac
+- cd ~/ohuac
+- git checkout 57cfac2974b30dcf987c509210db32c695707ed1
+- stack --no-terminal install
+- cd -
+
+# run the normal build with tests
 script:
   - cargo build --verbose
-  - cargo run -- testcases/simple_addition/addition.ohuao testcases/simple_addition/addition.type-dump testcases/simple_addition/src
   - cd testcases/simple_addition/ && cargo run && cd ../../
-  - cargo run -- testcases/argument_clone/argument_clone.ohuao testcases/argument_clone/argument_clone.type-dump testcases/argument_clone/src/
   - cd testcases/argument_clone/ && cargo run && cd ../../
-  - cargo run -- testcases/mainarg_clone/mainarg_cloning.ohuao testcases/mainarg_clone/mainarg_cloning.type-dump testcases/mainarg_clone/src/
   - cd testcases/mainarg_clone/ && cargo run && cd ../../
-  - cargo run -- testcases/string_manipulation/string_manipulation.ohuao testcases/string_manipulation/string_manipulation.type-dump testcases/string_manipulation/src/
   - cd testcases/string_manipulation/ && cargo run && cd ../../
-  - cargo run -- testcases/tuple_values/tuple_values.ohuao testcases/tuple_values/tuple_values.type-dump testcases/tuple_values/src/
   - cd testcases/tuple_values/ && cargo run && cd ../../
-  - cargo run -- testcases/double_use/double_use.ohuao testcases/double_use/double_use.type-dump testcases/double_use/src/
   - cd testcases/double_use/ && cargo run && cd ../../
 
-#   - cargo run -- testcases/custom_types/custom_types.ohuao testcases/custom_types/custom_types.type-dump testcases/custom_types/src/
 #   - cd testcases/custom_types/ && cargo run && cd ../../
