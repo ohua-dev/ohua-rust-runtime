@@ -84,7 +84,7 @@ pub struct ArcSource {
 }
 
 /// Represents a dependency to a stateful function.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct SfDependency {
     #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,

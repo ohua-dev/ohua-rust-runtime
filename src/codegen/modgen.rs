@@ -1,5 +1,5 @@
 //! Module File generator
-use super::types::AlgorithmArguments;
+use ohua_types::AlgorithmArguments;
 use std::io::{Result, Write};
 use std::fs::File;
 

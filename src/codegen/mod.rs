@@ -2,7 +2,6 @@
 //!
 //! This program generates a rust runtime for an [Ohua](https://github.com/ohua-dev) algorithm, which can be defined in an `ohuac` file.
 
-mod types;
 mod typecasts;
 mod wrappers;
 mod runtime_data;
@@ -12,8 +11,8 @@ use serde_json;
 use std::fs::{remove_dir_all, File, DirBuilder};
 use std::io::{self, Write};
 use std::path::Path;
-use comp_errors::CodeGenerationError;
-use self::types::{OhuaData, AlgorithmArguments};
+use errors::CodeGenerationError;
+use ohua_types::{OhuaData, AlgorithmArguments};
 use self::runtime_data::generate_runtime_data;
 
 

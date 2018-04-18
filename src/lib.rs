@@ -8,14 +8,19 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate syn;
+extern crate quote;
 extern crate tempdir;
 
-pub mod comp_errors;
+pub mod errors;
+pub mod ohua_types;
+pub mod type_extract;
 pub mod ohuac;
 pub mod codegen;
 
 use codegen::generate_ohua_runtime;
-use comp_errors::*;
+use errors::*;
+use type_extract::TypeKnowledgeBase;
 use tempdir::TempDir;
 use std::io;
 use std::path::PathBuf;
@@ -24,7 +29,10 @@ use std::env::current_dir;
 use std::error::Error;
 
 /// Recursively searches all subdirectories for `.ohuac` files
-pub fn find_ohuac_files(current_path: PathBuf, mut found: Vec<PathBuf>) -> io::Result<Vec<PathBuf>> {
+pub fn find_ohuac_files(
+    current_path: PathBuf,
+    mut found: Vec<PathBuf>,
+) -> io::Result<Vec<PathBuf>> {
     // iterate over all files in a folder, recurse deeper if it's a folder
     for entry in fs::read_dir(current_path)? {
         let cur_path = entry?.path();
@@ -45,10 +53,11 @@ pub fn run_ohua_build() {
         Err(io_err) => panic!("Unable to create a temp directory. {}", io_err),
     };
 
-    // search for all ohuac files in the project folder 
+    // search for all ohuac files in the project folder
     // NOTE: `current_dir()` returns the project dir, from where cargo operates!
-    let sources = find_ohuac_files(current_dir().unwrap(), vec![]).expect("Failed to locate `.ohuac` files.");
-    if sources.len() == 0 {
+    let sources =
+        find_ohuac_files(current_dir().unwrap(), vec![]).expect("Failed to locate `.ohuac` files.");
+    if sources.is_empty() {
         return;
     }
 
@@ -63,7 +72,12 @@ pub fn run_ohua_build() {
     let processed_algos = ohuac::generate_dfgs(sources, tmp_dir.clone());
 
     // Phase 2: Run the type extraction
-    // TODO
+    for algo in &processed_algos {
+        let type_infos = match TypeKnowledgeBase::generate_from(algo) {
+            Ok(info) => info,
+            Err(e) => panic!("{}", e),
+        };
+    }
 
     // Phase 3: Run `ohuac` w/ optimizations (unimplemented)
     // TODO

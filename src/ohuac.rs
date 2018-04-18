@@ -4,9 +4,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::io::ErrorKind;
 use std::error::Error;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 
+#[derive(Clone, Debug)]
 pub struct OhuaProduction {
     pub src: PathBuf,
     pub ohuao: PathBuf,
@@ -15,11 +16,11 @@ pub struct OhuaProduction {
 
 /// Creates a hashed filename, based on the original path's hash
 fn hashed_filename(input_name: &PathBuf) -> String {
-    let mut output_name: String = stringify!(input_name.file_stem().unwrap()).into();
+    let mut output_name: String = input_name.file_stem().unwrap().to_str().unwrap().into();
 
     let mut hasher = DefaultHasher::new();
     input_name.hash(&mut hasher);
-    output_name += stringify!(hasher.finish());
+    output_name += &hasher.finish().to_string();
 
     output_name
 }
