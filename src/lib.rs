@@ -77,6 +77,8 @@ pub fn run_ohua_build() {
             Ok(info) => info,
             Err(e) => panic!("{}", e),
         };
+
+        println!("Knowledge Base: {:#?}", type_infos);
     }
 
     // Phase 3: Run `ohuac` w/ optimizations (unimplemented)

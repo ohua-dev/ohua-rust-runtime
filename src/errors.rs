@@ -54,6 +54,7 @@ impl Error for CodeGenerationError {
 pub enum TypeExtractionError {
     IOError(io::Error),
     ModuleNotFound(String),
+    FunctionNotFoundInModule(String, String),
     ParsingError(ParseError),
     MalformedAlgoImportSpec(String),
 }
@@ -62,8 +63,9 @@ impl fmt::Display for TypeExtractionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use TypeExtractionError::*;
         match *self {
-            IOError(ref err) => write!(f, "A filesystem related error occured: {}", err),
+            IOError(ref err) => write!(f, "a filesystem related error occured: {}", err),
             ModuleNotFound(ref path) => write!(f, "the specified module could not be found {}", path),
+            FunctionNotFoundInModule(ref func, ref path) => write!(f, "unable to locate the function {} in module {}", func, path),
             ParsingError(ref err) => write!(f, "could not parse file: {}", err),
             MalformedAlgoImportSpec(ref path) => write!(f, "encountered malformed algorithm import specification in {}", path),
         }

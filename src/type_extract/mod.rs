@@ -21,6 +21,7 @@ use errors::TypeExtractionError;
 */
 
 /// Knowledge base for type information of a single algorithm
+#[derive(Debug)]
 pub struct TypeKnowledgeBase {
     /// per-function type information
     pub functions: Vec<FunctionInfo>,
@@ -29,7 +30,6 @@ pub struct TypeKnowledgeBase {
 }
 
 impl TypeKnowledgeBase {
-    // TODO: Take path(s) or data?
     pub fn generate_from(algo_info: &OhuaProduction) -> Result<Self, TypeExtractionError> {
         // read the files generated beforehand
         let algo_file = File::open(algo_info.ohuao.as_path())?;
@@ -54,7 +54,7 @@ impl TypeKnowledgeBase {
             // extract the type information contained within
             knowledgebase
                 .functions
-                .push(FunctionInfo::extract(dep, ast));
+                .push(FunctionInfo::extract(dep, ast)?);
         }
 
         Ok(knowledgebase)
@@ -123,6 +123,8 @@ fn find_module(
     };
     let mut content = String::new();
     file.read_to_string(&mut content)?;
+
+    println!("[Phase 2] Parsing module {}", mod_path.to_str().unwrap());
 
     Ok(content)
 }
