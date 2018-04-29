@@ -20,6 +20,7 @@ pub mod codegen;
 
 use codegen::generate_ohua_runtime;
 use errors::*;
+use ohuac::OhuaProduction;
 use type_extract::TypeKnowledgeBase;
 use tempdir::TempDir;
 use std::io;
@@ -69,16 +70,18 @@ pub fn run_ohua_build() {
      */
 
     // Phase 1: Run `ohuac` (there are no optimizations for the moment)
-    let processed_algos = ohuac::generate_dfgs(sources, tmp_dir.clone());
+    let mut processed_algos = ohuac::generate_dfgs(sources, tmp_dir.clone());
 
     // Phase 2: Run the type extraction
-    for algo in &processed_algos {
-        let type_infos = match TypeKnowledgeBase::generate_from(algo) {
+    let mut algo_info: Vec<(OhuaProduction, TypeKnowledgeBase)> = Vec::with_capacity(processed_algos.len());
+    for algo in processed_algos.drain(..) {
+        let type_infos = match TypeKnowledgeBase::generate_from(&algo) {
             Ok(info) => info,
             Err(e) => panic!("{}", e),
         };
 
         println!("Knowledge Base: {:#?}", type_infos);
+        algo_info.push((algo, type_infos));
     }
 
     // Phase 3: Run `ohuac` w/ optimizations (unimplemented)
@@ -88,12 +91,11 @@ pub fn run_ohua_build() {
     let mut target_dir = current_dir().unwrap();
     target_dir.push("src/");
 
-    for algo in processed_algos {
+    for &(ref algo, ref info) in &algo_info {
         // TODO: Check algos don't occur twice
         // TODO: name algo-folders
-        // TODO: Include `ohuac` into CI
         let algo_target = String::from(target_dir.to_str().unwrap());
-        if let Err(e) = generate_ohua_runtime(algo.ohuao, algo.typedump, algo_target) {
+        if let Err(e) = generate_ohua_runtime(&algo, algo_target, &info) {
             panic!("Code generation failed! {}", e.description());
         }
     }

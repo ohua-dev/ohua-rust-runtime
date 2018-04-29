@@ -1,5 +1,6 @@
 //! Typecasting generation for the `GenericType` type
-use ohua_types::{AlgorithmArguments, Operator};
+use ohua_types::Operator;
+use type_extract::TypeKnowledgeBase;
 
 use std::collections::HashSet;
 use std::fs::File;
@@ -56,16 +57,16 @@ fn get_argument_types(fn_name: String) -> Vec<String> {
 /// The returned result is forwarded from the `generate_for` function.
 pub fn generate_casts(
     operators: &Vec<Operator>,
-    algo_args: &AlgorithmArguments,
+    typeinfo: &TypeKnowledgeBase,
     target_file: &str,
 ) -> Result<()> {
     let mut used_types: HashSet<String> = HashSet::new();
 
     // also make use of the argument types provided from the `type_dump` file
-    for arg in &algo_args.argument_types {
+    for arg in &typeinfo.algo_io.argument_types {
         used_types.insert(arg.clone().replace(" ", ""));
     }
-    used_types.insert(algo_args.return_type.clone().replace(" ", ""));
+    used_types.insert(typeinfo.algo_io.return_type.clone().replace(" ", ""));
 
     for op in operators {
         let fn_name = op.operatorType

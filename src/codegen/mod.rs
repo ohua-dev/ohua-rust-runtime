@@ -8,13 +8,13 @@ mod runtime_data;
 mod modgen;
 
 use serde_json;
-use std::fs::{remove_dir_all, File, DirBuilder};
+use std::fs::{remove_dir_all, DirBuilder, File};
 use std::io::{self, Write};
-use std::path::Path;
 use errors::CodeGenerationError;
-use ohua_types::{OhuaData, AlgorithmArguments};
+use ohua_types::OhuaData;
+use ohuac::OhuaProduction;
+use type_extract::TypeKnowledgeBase;
 use self::runtime_data::generate_runtime_data;
-
 
 /// This function writes all static files to their respective locations,
 /// returning an error when the write operation exitted unsuccessfully.
@@ -26,7 +26,11 @@ fn populate_static_files(path: String) -> io::Result<()> {
 }
 
 /// Runtime Generator
-pub fn generate_ohua_runtime<P: AsRef<Path>>(dfg_path: P, typeinfo_path: P, mut output: String) -> Result<(), CodeGenerationError> {
+pub fn generate_ohua_runtime(
+    algorithm: &OhuaProduction,
+    mut output: String,
+    typeinfo: &TypeKnowledgeBase,
+) -> Result<(), CodeGenerationError> {
     if let Err(err) = DirBuilder::new().recursive(true).create(output.as_str()) {
         return Err(CodeGenerationError::TargetDirNotCreated(err));
     }
@@ -34,13 +38,11 @@ pub fn generate_ohua_runtime<P: AsRef<Path>>(dfg_path: P, typeinfo_path: P, mut 
     // ====== start the real work ======
 
     // read the data structures
-    let dfg_file = File::open(dfg_path).unwrap();
+    let dfg_file = File::open(&algorithm.ohuao).unwrap();
     let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
-    let typeinfo_file = File::open(typeinfo_path).unwrap();
-    let type_data: AlgorithmArguments = serde_json::from_reader(typeinfo_file).unwrap();
 
     // check whether both mainArity and number of argument types match
-    if ohua_data.mainArity as usize != type_data.argument_types.len() {
+    if ohua_data.mainArity as usize != typeinfo.algo_io.argument_types.len() {
         return Err(CodeGenerationError::InconsistentMainArity);
     }
 
@@ -70,19 +72,30 @@ pub fn generate_ohua_runtime<P: AsRef<Path>>(dfg_path: P, typeinfo_path: P, mut 
     }
 
     // generate all necessary type casts for the Arcs
-    if let Err(err) = typecasts::generate_casts(&ohua_data.graph.operators, &type_data, (output.clone() + "/generictype.rs").as_str()) {
-        return Err(CodeGenerationError::StaticPopulationFailed(err))
+    if let Err(err) = typecasts::generate_casts(
+        &ohua_data.graph.operators,
+        &typeinfo,
+        (output.clone() + "/generictype.rs").as_str(),
+    ) {
+        return Err(CodeGenerationError::CastGenerationFailed(err));
     }
 
     // generate wrapper functions for all operators
-    let altered_ohuadata = match wrappers::generate_wrappers(ohua_data, &type_data.argument_types, (output.clone() + "/wrappers.rs").as_str()) {
+    let altered_ohuadata = match wrappers::generate_wrappers(
+        ohua_data,
+        &typeinfo.algo_io.argument_types,
+        (output.clone() + "/wrappers.rs").as_str(),
+    ) {
         Ok(data) => data,
         Err(err) => {
             return Err(CodeGenerationError::WrapperGenerationFailed(err));
         }
     };
 
-    if let Err(err) = modgen::generate_modfile(&type_data, (output.clone() + "/mod.rs").as_str()) {
+    // generate the module file
+    if let Err(err) =
+        modgen::generate_modfile(&typeinfo.algo_io, (output.clone() + "/mod.rs").as_str())
+    {
         return Err(CodeGenerationError::ModfileGenerationFailed(err));
     }
 
