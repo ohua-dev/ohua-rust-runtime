@@ -130,6 +130,19 @@ impl fmt::Display for Operator {
     }
 }
 
+impl OperatorType {
+    pub fn function_name(&self) -> String {
+        let mut name = String::new();
+        for item in &self.qbNamespace {
+            name += item.as_str();
+            name += "::";
+        }
+        name += self.qbName.as_str();
+
+        name
+    }
+}
+
 impl fmt::Display for OperatorType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut namesp = String::new();

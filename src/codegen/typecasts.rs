@@ -1,5 +1,5 @@
 //! Typecasting generation for the `GenericType` type
-use ohua_types::Operator;
+use ohua_types::{Operator, OperatorType};
 use type_extract::TypeKnowledgeBase;
 
 use std::collections::HashSet;
@@ -26,29 +26,26 @@ fn generate_for(types: HashSet<String>, target_file: &str) -> Result<()> {
     File::create(target_file)?.write_fmt(format_args!("{}{}", generic_type_file, typecast_file))
 }
 
-/// Currently a dummy function to "extract" the types. Has to be extended everytime with the new cases.
-fn get_argument_types(fn_name: String) -> Vec<String> {
-    match fn_name.as_str() {
-        "hello::calc" => vec![String::from("i32")],
-        "hello::world" => vec![String::from("i32")],
-        "strings::gen_string" => vec![String::from("i32")],
-        "strings::count_strings" => vec![String::from("String")],
-        "strings::extend_string1" => vec![String::from("String")],
-        "strings::extend_string2" => vec![String::from("String")],
-        "strings::append" => vec![String::from("String")],
-        "strings::duplicate" => vec![String::from("String")],
-        "strings::count" => vec![String::from("String"), String::from("usize")],
-        "mainclone::calc" => vec![String::from("i32")],
-        "mainclone::double" => vec![String::from("i32")],
-        "tuples::append_to_string" => vec![String::from("String"), String::from("i32")],
-        "tuples::extend_string" => vec![String::from("String")],
-        "tuples::output_values" => vec![String::from("i32"), String::from("String"), String::from("(i32, String, usize)")],
-        "house::move_house" => vec![String::from("house::House"), String::from("String")],
-        "house::move_in_one" => vec![String::from("house::House"), String::from("Vec<house::Human>")],
-        "house::house_information" => vec![String::from("house::House")],
-        "house::evict_one" => vec![String::from("house::House")],
-        _ => vec![],
+/// Retrieves the argument types for a given function from the type knowledge base
+fn get_argument_types(func: &OperatorType, lookup: &TypeKnowledgeBase) -> Vec<String> {
+    // first off, find the function in the lookup table
+    for funcinfo in &lookup.functions {
+        if funcinfo.name == func.qbName && funcinfo.namespace == func.qbNamespace {
+            // when we've found our function, collect all types
+            let mut types = Vec::with_capacity(funcinfo.arguments.len() + 1);
+            for ty in &funcinfo.arguments {
+                types.push(ty.name.clone());
+            }
+            types.push(funcinfo.return_val.name.clone());
+            return types;
+        }
     }
+
+    // if we've found nothing this is an error
+    panic!(
+        "The function {} has not been found in the type lookup table.",
+        func.function_name()
+    );
 }
 
 /// Retrieves and collects all types we have to generate casts for.
@@ -69,13 +66,8 @@ pub fn generate_casts(
     used_types.insert(typeinfo.algo_io.return_type.clone().replace(" ", ""));
 
     for op in operators {
-        let fn_name = op.operatorType
-            .qbNamespace
-            .iter()
-            .fold(String::new(), |acc, ref x| acc.to_owned() + &x + "::")
-            + op.operatorType.qbName.as_str();
-
-        for occuring_type in get_argument_types(fn_name) {
+        // retrieve all argument types for the operator
+        for occuring_type in get_argument_types(&op.operatorType, &typeinfo) {
             used_types.insert(occuring_type.replace(" ", ""));
         }
     }
