@@ -4,9 +4,9 @@ use sf house (move_house, move_in_one, evict_one, house_information);
 
 fn main(house: House, target_address: String, humans: Vec<Human>) -> House {
     let house = move_house(house, target_address);
-    let [house, humans] = move_in_one(house, humans);
-    let [house, humans] = move_in_one(house, humans);
-    let [house, humans] = move_in_one(house, humans);
+    let (house, humans) = move_in_one(house, humans);
+    let (house, humans) = move_in_one(house, humans);
+    let (house, humans) = move_in_one(house, humans);
 
     house_information(house);
 

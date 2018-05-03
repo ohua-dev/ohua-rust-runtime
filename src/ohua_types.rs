@@ -84,7 +84,7 @@ pub struct ArcSource {
 }
 
 /// Represents a dependency to a stateful function.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct SfDependency {
     #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,
@@ -127,6 +127,19 @@ impl fmt::Display for DFGraph {
 impl fmt::Display for Operator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Operator {{operatorId: {}, operatorType: {}}}", self.operatorId, self.operatorType)
+    }
+}
+
+impl OperatorType {
+    pub fn function_name(&self) -> String {
+        let mut name = String::new();
+        for item in &self.qbNamespace {
+            name += item.as_str();
+            name += "::";
+        }
+        name += self.qbName.as_str();
+
+        name
     }
 }
 
