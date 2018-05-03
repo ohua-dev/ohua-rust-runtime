@@ -27,7 +27,7 @@ before_install:
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 - git clone https://github.com/ohua-dev/ohuac.git ~/ohuac
 - cd ~/ohuac
-- git checkout 57cfac2974b30dcf987c509210db32c695707ed1
+- git checkout 97eddb9a7f7e7bc4a878f80806527eff356fe5c9
 - stack --no-terminal install
 - cd -
 
