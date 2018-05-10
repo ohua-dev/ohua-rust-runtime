@@ -40,5 +40,4 @@ script:
   - cd testcases/string_manipulation/ && cargo run && cd ../../
   - cd testcases/tuple_values/ && cargo run && cd ../../
   - cd testcases/double_use/ && cargo run && cd ../../
-
-#   - cd testcases/custom_types/ && cargo run && cd ../../
+  - cd testcases/custom_types/ && cargo run && cd ../../
