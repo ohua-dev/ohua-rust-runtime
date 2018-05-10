@@ -267,7 +267,7 @@ fn resolve_use_stmt(item_use: &syn::UseTree, current_state: Option<LookupInfo>) 
     table
 }
 
-fn collect_type(argument: &syn::Type) -> String {
+pub fn collect_type(argument: &syn::Type) -> String {
     let mut tokens = Tokens::new();
     argument.to_tokens(&mut tokens);
 
@@ -325,7 +325,7 @@ fn inspect_path_segments(ty_path: &syn::Path, lookup_table: &LookupTable) -> Vec
 
 // TODO: That is a incredibly misleading name
 /// Using a previously generated lookup table, try to collect all necessary imports for a (possibly composited) type
-fn find_paths_for_type(ty: &syn::Type, lookup_table: &LookupTable) -> Vec<String> {
+pub fn find_paths_for_type(ty: &syn::Type, lookup_table: &LookupTable) -> Vec<String> {
     let mut imports = Vec::new();
 
     use syn::Type::*;

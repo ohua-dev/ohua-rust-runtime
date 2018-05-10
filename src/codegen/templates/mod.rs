@@ -11,6 +11,8 @@ use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType};
 use std::thread::{self, Builder};
 use std::sync::mpsc;
 
+{ty_imports}
+
 
 fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, recv: mpsc::Receiver<Box<GenericType>>, target: u32) {
     let mut index: usize = 0;
@@ -152,7 +154,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
                         args.push(content);
                     } else {
                         #[cold]
-                        // when we sre in `exiting` state, we should not be here...
+                        // when we are in `exiting` state, we should not be here...
                         eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
                         break 'threadloop;
                     }

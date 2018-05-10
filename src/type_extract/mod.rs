@@ -7,6 +7,7 @@ use syn;
 use serde_json;
 
 mod parser;
+mod algo_io_imports;
 
 pub use self::parser::{FunctionInfo, Type};
 use ohuac::OhuaProduction;
@@ -58,6 +59,22 @@ impl TypeKnowledgeBase {
         }
 
         Ok(knowledgebase)
+    }
+
+    /// Collects import paths for all types mentioned in the `algo_io` member
+    pub fn find_imports_for_algo_io(&self) -> Vec<String> {
+        let mut imports = Vec::new();
+
+        for input in &self.algo_io.argument_types {
+            let parsed: syn::Type = match syn::parse_str(input) {
+                Ok(tokens) => tokens,
+                Err(e) => panic!("[Stage 4] A critical error occured while parsing the ohuac type dump output.\n This is an internal error. \n{}", e),
+            };
+
+            imports.append(&mut algo_io_imports::find_paths_for_used_types(&parsed, &self.functions));
+        }
+
+        imports
     }
 }
 
