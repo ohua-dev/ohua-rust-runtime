@@ -28,7 +28,7 @@ fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<GenericType>>)
 }
 
 fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>, sender: mpsc::Sender<Box<GenericType>>, target: u32) {
-    let mut index: usize = 0;
+    let mut index: usize = senders.len();
     let mut exists = false;
 
     // iterate over the enumerated sender list and place the sender at the correct index
