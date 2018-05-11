@@ -31,13 +31,16 @@ fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericT
     let mut index: usize = 0;
     let mut exists = false;
 
-    for &(ind, _) in senders.iter() {
+    // iterate over the enumerated sender list and place the sender at the correct index
+    for (vec_index, sender) in senders.iter().enumerate() {
+        let &(ind, _) = sender;
+
         if ind == target {
-            index = ind as usize;
+            index = vec_index as usize;
             exists = true;
             break;
         } else if ind > target {
-            index = ind as usize;
+            index = vec_index as usize;
             break;
         }
     }

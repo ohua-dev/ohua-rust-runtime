@@ -41,3 +41,5 @@ script:
   - cd testcases/tuple_values/ && cargo run && cd ../../
   - cd testcases/double_use/ && cargo run && cd ../../
   - cd testcases/custom_types/ && cargo run && cd ../../
+  - cd testcases/correct_sender_placement && cargo run && cd ../../
+
