@@ -5,6 +5,7 @@ use std::io::{Result, Write};
 use std::fs::File;
 
 use ohua_types::*;
+use type_extract::TypeKnowledgeBase;
 
 /// Generates a wrapper for a single stateful function.
 ///
@@ -78,9 +79,7 @@ fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>
                     ).as_ref(),
                 );
             } else {
-                outgoing.push_str(
-                    format!("vec![{}]", "Box::from(Box::new(res))").as_ref(),
-                );
+                outgoing.push_str(format!("vec![{}]", "Box::from(Box::new(res))").as_ref());
             }
         }
 
@@ -102,7 +101,10 @@ fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>
 /// The hashset of namespaces is used to generate the correct imports to have all functions in scope.
 fn analyze_dfg(
     ohuadata: &OhuaData,
-) -> (HashMap<String, (usize, Vec<usize>, Vec<i32>)>, HashSet<String>) {
+) -> (
+    HashMap<String, (usize, Vec<usize>, Vec<i32>)>,
+    HashSet<String>,
+) {
     // the function map tracks the number of I/O ports a function has as well as the operators associated with a function
     // NOTE: there might be more than one operator per function
     let mut function_map: HashMap<String, (usize, Vec<usize>, Vec<i32>)> = HashMap::new();
@@ -184,7 +186,11 @@ fn analyze_dfg(
 /// cloning and a clean integration into the DFG.
 ///
 /// Also creates the necessary new operators for the mainarg wrappers.
-fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: &Vec<String>) -> (Vec<Operator>, String) {
+fn generate_mainarg_wrappers(
+    first_id: i32,
+    ohuadata: &OhuaData,
+    mainarg_types: &Vec<String>,
+) -> (Vec<Operator>, String) {
     let template = include_str!("templates/snippets/mainarg.in");
 
     let mut operators = Vec::new();
@@ -211,12 +217,16 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: 
             1 => {
                 wrapper = wrapper.replace(
                     "{argument}",
-                    format!("Box::from(Box::new({}))", "arg").as_str())
+                    format!("Box::from(Box::new({}))", "arg").as_str(),
+                )
             }
             _ => {
                 wrapper = wrapper.replace(
                     "{argument}",
-                    format!("Box::from(Box::new({}.clone())), ", "arg").repeat(num_uses).as_str())
+                    format!("Box::from(Box::new({}.clone())), ", "arg")
+                        .repeat(num_uses)
+                        .as_str(),
+                )
             }
         }
         wrapper_code.push_str(wrapper.as_str());
@@ -243,14 +253,18 @@ fn generate_mainarg_wrappers(first_id: i32, ohuadata: &OhuaData, mainarg_types: 
 /// links to the corresponding wrapped functions and add the main argument wrappers.
 ///
 /// Returns either an IO error when opening/writing to the file failed or the updated ohua data structure
-pub fn generate_wrappers(mut ohuadata: OhuaData, mainarg_types: &Vec<String>, target_file: &str) -> Result<OhuaData> {
+pub fn generate_wrappers(
+    mut ohuadata: OhuaData,
+    lookupinfo: &TypeKnowledgeBase,
+    target_file: &str,
+) -> Result<OhuaData> {
     // analyze the dataflow graph
     let (function_map, namespaces) = analyze_dfg(&ohuadata);
 
     let skeleton = include_str!("templates/wrappers.rs");
 
     // generate imports
-    let imports = namespaces
+    let mut imports = namespaces
         .iter()
         .fold(String::new(), |acc, ref x| acc + "use " + x + ";\n");
 
@@ -273,15 +287,26 @@ pub fn generate_wrappers(mut ohuadata: OhuaData, mainarg_types: &Vec<String>, ta
 
     // wrap the main arguments
     let first_mainarg = (ohuadata.graph.operators.len() + 1) as i32;
-    let (mut mainarg_ops, wrapper_code) = generate_mainarg_wrappers(first_mainarg, &ohuadata, mainarg_types);
+    let (mut mainarg_ops, wrapper_code) =
+        generate_mainarg_wrappers(first_mainarg, &ohuadata, &lookupinfo.algo_io.argument_types);
 
     // register each mainarg operator as target for an input arc
     ohuadata.graph.input_targets.reserve(mainarg_ops.len());
     for op in &mainarg_ops {
-        ohuadata.graph.input_targets.push(ArcIdentifier {operator: op.operatorId, index: 0})
+        ohuadata.graph.input_targets.push(ArcIdentifier {
+            operator: op.operatorId,
+            index: 0,
+        })
     }
 
     ohuadata.graph.operators.append(&mut mainarg_ops);
+
+    // after the mainargs have been appended, add the imports for their argument types
+    imports += lookupinfo
+        .find_imports_for_algo_io()
+        .iter()
+        .fold(String::from("\n"), |acc, ref x| acc + "use " + x + ";\n")
+        .as_str();
 
     // rewrite the env arcs for any main arguments encountered
     for mut arc in ohuadata.graph.arcs.iter_mut() {

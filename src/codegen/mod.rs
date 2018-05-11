@@ -35,9 +35,7 @@ pub fn generate_ohua_runtime(
         return Err(CodeGenerationError::TargetDirNotCreated(err));
     }
 
-    // ====== start the real work ======
-
-    // read the data structures
+    // read the DFG data structure
     let dfg_file = File::open(&algorithm.ohuao).unwrap();
     let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
 
@@ -64,8 +62,6 @@ pub fn generate_ohua_runtime(
         }
     }
 
-    // TODO: Continue to rewrite into error type, write first `build.rs`, verify it works
-
     // populate the module with the static files
     if let Err(err) = populate_static_files(output.clone()) {
         return Err(CodeGenerationError::StaticPopulationFailed(err));
@@ -83,7 +79,7 @@ pub fn generate_ohua_runtime(
     // generate wrapper functions for all operators
     let altered_ohuadata = match wrappers::generate_wrappers(
         ohua_data,
-        &typeinfo.algo_io.argument_types,
+        &typeinfo,
         (output.clone() + "/wrappers.rs").as_str(),
     ) {
         Ok(data) => data,
@@ -94,7 +90,7 @@ pub fn generate_ohua_runtime(
 
     // generate the module file
     if let Err(err) =
-        modgen::generate_modfile(&typeinfo.algo_io, (output.clone() + "/mod.rs").as_str())
+        modgen::generate_modfile(&typeinfo, (output.clone() + "/mod.rs").as_str())
     {
         return Err(CodeGenerationError::ModfileGenerationFailed(err));
     }

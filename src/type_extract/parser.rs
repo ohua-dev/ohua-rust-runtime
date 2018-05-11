@@ -4,6 +4,8 @@ use errors::TypeExtractionError;
 use syn;
 use quote::{ToTokens, Tokens};
 
+// TODO: Clean up this mess
+
 /// Type that contains type lookup information for a module. `K` is the outside name from `V`, when existing.
 type LookupTable = HashMap<String, LookupInfo>;
 
@@ -265,15 +267,65 @@ fn resolve_use_stmt(item_use: &syn::UseTree, current_state: Option<LookupInfo>) 
     table
 }
 
-fn collect_type(argument: &syn::Type) -> String {
+pub fn collect_type(argument: &syn::Type) -> String {
     let mut tokens = Tokens::new();
     argument.to_tokens(&mut tokens);
 
     tokens.to_string().replace(" ", "")
 }
 
+/// Inspects a generic argument from a path segment to extract any necessary imports
+fn inspect_angle_bracketed_generic_arg(
+    generic_arg: &syn::AngleBracketedGenericArguments,
+    lookup_table: &LookupTable,
+) -> Vec<String> {
+    let mut imports = Vec::new();
+
+    for arg in &generic_arg.args {
+        // We only care about generic arguments of type "Type" here
+        if let syn::GenericArgument::Type(ref ty) = *arg {
+            imports.append(&mut find_paths_for_type(ty, lookup_table));
+        }
+    }
+
+    imports
+}
+
+/// Inspects a type path to collect all necessary imports for types used within
+fn inspect_path_segments(ty_path: &syn::Path, lookup_table: &LookupTable) -> Vec<String> {
+    let mut imports = Vec::new();
+
+    // check whether the first part of the imported path is found in the DB
+    if let Some(val) =
+        lookup_table.get(&ty_path.segments.first().unwrap().value().ident.to_string())
+    {
+        let mut import = val.import_path.clone();
+        if val.is_renamed() {
+            import += format!(" as {}", val.outside_name.clone().unwrap()).as_str();
+        }
+        imports.push(import);
+    }
+
+    // inspect all path segments to look for path arguments (like in Vec<Type> or Result<Foo, Bar>)
+    for segment in &ty_path.segments {
+        match segment.arguments {
+            syn::PathArguments::None => (),
+            syn::PathArguments::Parenthesized(_) => println!(
+                "[DEBUG] Ignoring parenthesized path arguments at {:?}",
+                segment
+            ),
+            syn::PathArguments::AngleBracketed(ref ang) => {
+                imports.append(&mut inspect_angle_bracketed_generic_arg(ang, lookup_table))
+            }
+        }
+    }
+
+    imports
+}
+
+// TODO: That is a incredibly misleading name
 /// Using a previously generated lookup table, try to collect all necessary imports for a (possibly composited) type
-fn find_paths_for_type(ty: &syn::Type, lookup_table: &LookupTable) -> Vec<String> {
+pub fn find_paths_for_type(ty: &syn::Type, lookup_table: &LookupTable) -> Vec<String> {
     let mut imports = Vec::new();
 
     use syn::Type::*;
@@ -298,22 +350,7 @@ fn find_paths_for_type(ty: &syn::Type, lookup_table: &LookupTable) -> Vec<String
             imports.append(&mut find_paths_for_type(ty, lookup_table));
         },
         Path(ref ty_path) => {
-            // check whether the first part of the imported path is found in the DB
-            if let Some(val) = lookup_table.get(&ty_path
-                .path
-                .segments
-                .first()
-                .unwrap()
-                .value()
-                .ident
-                .to_string())
-            {
-                let mut import = val.import_path.clone();
-                if val.is_renamed() {
-                    import += format!(" as {}", val.outside_name.clone().unwrap()).as_str();
-                }
-                imports.push(import);
-            }
+            imports.append(&mut inspect_path_segments(&ty_path.path, lookup_table))
         }
         TraitObject(_) => {
             panic!("Function arguments bound by Traits are not supported by ohua yet.")

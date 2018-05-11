@@ -7,7 +7,7 @@ pub struct Human {
 pub struct House {
     pub rooms: u8,
     pub inhabitants: Vec<Human>,
-    address: String
+    pub address: String
 }
 
 pub enum EmotionalState {
@@ -17,19 +17,19 @@ pub enum EmotionalState {
 }
 
 impl House {
-    pub fn getAddress(&self) -> String {
+    pub fn get_address(&self) -> String {
         self.address.clone()
     }
 
-    pub fn changeAddress(&mut self, new: String) {
+    pub fn change_address(&mut self, new: String) {
         self.address = new;
     }
 }
 
 pub fn move_house(mut house: House, target_address: String) -> House {
-    print!("Moving the House from {}. ", house.getAddress());
-    house.changeAddress(target_address);
-    println!("Moved to {}", house.getAddress());
+    print!("Moving the House from {}. ", house.get_address());
+    house.change_address(target_address);
+    println!("Moved to {}", house.get_address());
     house
 }
 
@@ -41,7 +41,7 @@ pub fn move_in_one(mut house: House, mut humans: Vec<Human>) -> (House, Vec<Huma
 }
 
 pub fn house_information(house: House) {
-    println!("Address: {}, Rooms: {}", house.getAddress(), house.rooms);
+    println!("Address: {}, Rooms: {}", house.get_address(), house.rooms);
     let mut inhabitants = String::new();
     for inh in house.inhabitants {
         inhabitants += (inh.name + ", ").as_str();
@@ -52,4 +52,8 @@ pub fn house_information(house: House) {
 pub fn evict_one(mut house: House) -> House {
     let _ = house.inhabitants.pop();
     house
+}
+
+pub fn check_any_humans_left(_humans: Vec<Human>) {
+    ();
 }

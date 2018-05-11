@@ -9,10 +9,22 @@ use std::io::{Result, Write};
 /// Generates a bidirectional type cast for every type from the given hash set.
 ///
 /// Returns an IO Error when opening or writing to a file fails.
-fn generate_for(types: HashSet<String>, target_file: &str) -> Result<()> {
-    let generic_type_file = include_str!("templates/generictype.rs");
+fn generate_for(
+    types: HashSet<String>,
+    import_paths: HashSet<String>,
+    target_file: &str,
+) -> Result<()> {
+    let generic_type_file = String::from(include_str!("templates/generictype.rs"));
     let typecast = include_str!("templates/snippets/typecast.in");
 
+    // Add the imports to the file
+    let mut imports = String::new();
+    for imp in import_paths {
+        imports += &format!("use {};\n", imp);
+    }
+    let type_header = generic_type_file.replace("{imports}", imports.as_str());
+
+    // generate the casts
     let mut typecast_file = String::new();
 
     for datatype in types {
@@ -23,7 +35,8 @@ fn generate_for(types: HashSet<String>, target_file: &str) -> Result<()> {
         );
     }
 
-    File::create(target_file)?.write_fmt(format_args!("{}{}", generic_type_file, typecast_file))
+    // write the imports and the casts concatenated to a file
+    File::create(target_file)?.write_fmt(format_args!("{}{}", type_header, typecast_file))
 }
 
 /// Retrieves the argument types for a given function from the type knowledge base
@@ -57,7 +70,9 @@ pub fn generate_casts(
     typeinfo: &TypeKnowledgeBase,
     target_file: &str,
 ) -> Result<()> {
+    // TODO: Couldn't this be rewritten by omitting the operator iteration and directly using all types from the knowledge base?
     let mut used_types: HashSet<String> = HashSet::new();
+    let mut necessary_imports: HashSet<String> = HashSet::new();
 
     // also make use of the argument types provided from the `type_dump` file
     for arg in &typeinfo.algo_io.argument_types {
@@ -72,5 +87,22 @@ pub fn generate_casts(
         }
     }
 
-    generate_for(used_types, target_file)
+    // gather all necessary import paths
+    for func in &typeinfo.functions {
+        for arg in &func.arguments {
+            if let Some(ref paths) = arg.path {
+                for path in paths {
+                    necessary_imports.insert(path.clone());
+                }
+            }
+        }
+
+        if let Some(ref paths) = func.return_val.path {
+            for path in paths {
+                necessary_imports.insert(path.clone());
+            }
+        }
+    }
+
+    generate_for(used_types, necessary_imports, target_file)
 }
