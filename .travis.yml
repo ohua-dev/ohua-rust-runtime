@@ -42,4 +42,5 @@ script:
   - cd testcases/double_use/ && cargo run && cd ../../
   - cd testcases/custom_types/ && cargo run && cd ../../
   - cd testcases/correct_sender_placement && cargo run && cd ../../
+  - cd testcases/unused_arguments && cargo run && cd ../../
 

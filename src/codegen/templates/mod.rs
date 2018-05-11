@@ -136,10 +136,10 @@ pub fn ohua_main({input_args}) -> {return_type} {
     // create and place channels for the arcs specified
     let (input_ports, mut channels, output_port) = generate_channels(operators.len(), &runtime_data.graph.arcs, &runtime_data.graph.return_arc, &runtime_data.graph.input_targets);
 
-    for mut op_channels in channels.drain(..).enumerate() {
-        operators[op_channels.0].input = (op_channels.1).0.drain(..).unzip::<u32, mpsc::Receiver<Box<GenericType>>, Vec<u32>, Vec<mpsc::Receiver<Box<GenericType>>>>().1;
+    for (index, mut op_channels) in channels.drain(..).enumerate() {
+        operators[index].input = op_channels.0.drain(..).unzip::<u32, mpsc::Receiver<Box<GenericType>>, Vec<u32>, Vec<mpsc::Receiver<Box<GenericType>>>>().1;
 
-        operators[op_channels.0].output = (op_channels.1).1.drain(..).unzip::<u32, Vec<mpsc::Sender<Box<GenericType>>>, Vec<u32>, Vec<Vec<mpsc::Sender<Box<GenericType>>>>>().1;
+        operators[index].output = op_channels.1;
     }
 
     // thread spawning
@@ -183,9 +183,10 @@ pub fn ohua_main({input_args}) -> {return_type} {
 
             // call function & send results
             let mut results = (op.func)(args);
-            for (index, mut element_vec) in results.drain(..).enumerate() {
-                for (arc, msg) in element_vec.drain(..).enumerate() {
-                        op.output[index][arc].send(msg).unwrap();
+            for &(ref port, ref senders) in &op.output {
+                for sender in senders {
+                    let element_to_send = results[*port as usize].pop().expect(&format!("Could not satisfy output port {} at {}", port, op.name));
+                    sender.send(element_to_send).unwrap();
                 }
             }
         }).unwrap();
