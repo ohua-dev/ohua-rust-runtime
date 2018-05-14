@@ -53,7 +53,3 @@ pub fn evict_one(mut house: House) -> House {
     let _ = house.inhabitants.pop();
     house
 }
-
-pub fn check_any_humans_left(_humans: Vec<Human>) {
-    ();
-}
