@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf house (move_house, move_in_one, evict_one, house_information, check_any_humans_left);
+use sf house (move_house, move_in_one, evict_one, house_information);
 
 fn main(house: House, target_address: String, humans: Vec<Human>) -> House {
     let house2 = move_house(house, target_address);
@@ -9,9 +9,6 @@ fn main(house: House, target_address: String, humans: Vec<Human>) -> House {
     let (house5, humans4) = move_in_one(house4, humans3);
 
     house_information(house5);
-
-    // TODO: remove this workaround when issue with unused operator outputs is resolved!
-    check_any_humans_left(humans4);
 
     evict_one(house5)
 }

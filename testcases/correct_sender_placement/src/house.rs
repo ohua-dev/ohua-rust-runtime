@@ -1,19 +1,22 @@
+#[derive(Clone)]
 pub struct Human {
     pub name: String,
     pub emotional_state: EmotionalState,
-    pub age: u8
+    pub age: u8,
 }
 
+#[derive(Clone)]
 pub struct House {
     pub rooms: u8,
     pub inhabitants: Vec<Human>,
-    pub address: String
+    pub address: String,
 }
 
+#[derive(Clone)]
 pub enum EmotionalState {
     Happy,
     Content,
-    Sad
+    Sad,
 }
 
 impl House {
@@ -52,4 +55,8 @@ pub fn house_information(house: House) {
 pub fn evict_one(mut house: House) -> House {
     let _ = house.inhabitants.pop();
     house
+}
+
+pub fn nop(_humans: Vec<Human>) {
+    ()
 }

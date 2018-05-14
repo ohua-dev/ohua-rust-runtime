@@ -1,0 +1,15 @@
+ns some_ns;
+
+use sf house (move_house, move_in_one, evict_one, house_information, nop);
+
+fn main(house: House, target_address: String, humans: Vec<Human>) -> House {
+    let house_moved = move_house(house, target_address);
+
+    let (house2, humans2) = move_in_one(house_moved, humans);
+
+    nop(humans2);
+
+    house_information(house2);
+    evict_one(house2)
+}
+

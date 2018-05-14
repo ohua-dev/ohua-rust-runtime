@@ -5,7 +5,7 @@ use ohua_runtime::generictype::GenericType;
 
 pub struct OhuaOperator {
     pub input: Vec<Receiver<Box<GenericType>>>,
-    pub output: Vec<Vec<Sender<Box<GenericType>>>>,
+    pub output: Vec<(u32, Vec<Sender<Box<GenericType>>>)>,
     pub name: String,
     pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
 }

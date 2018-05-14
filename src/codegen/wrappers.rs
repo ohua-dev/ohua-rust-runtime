@@ -268,6 +268,17 @@ pub fn generate_wrappers(
         .iter()
         .fold(String::new(), |acc, ref x| acc + "use " + x + ";\n");
 
+    /* TODO:
+     *  The fix for the problem that operators cannot have a differing number of output ports
+     *  throughout the algorithm is somewhere in the following block.
+     *  Simplest idea: Always use the maximum number of i/o ports (i.e., when the op. clones
+     *  3 times once and otherwise always only uses 1 return val, make the op always clone 3
+     *  times)
+     *
+     * ==> leads to unused clones that may impact performance but not correctness (other fixes
+     *     are welcome) ¯\_(ツ)_/¯
+     */
+
     // generate function wrappers
     let mut func_wrapper = String::new();
     for (name, io) in function_map {
