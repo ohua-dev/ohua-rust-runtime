@@ -45,6 +45,11 @@ impl TypeKnowledgeBase {
         };
 
         for dep in algo_spec.sfDependencies.drain(..) {
+            // ignore any `ohua/lang` dependencies here, these are compiler builtins
+            if dep.qbNamespace == vec!["ohua".to_string(), "lang".to_string()] {
+                continue;
+            }
+
             // find correlating module
             let module_content: String =
                 find_module(dep.qbNamespace.clone(), algo_info.src.as_path())?;

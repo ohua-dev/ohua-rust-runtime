@@ -81,6 +81,11 @@ pub fn generate_casts(
     used_types.insert(typeinfo.algo_io.return_type.clone().replace(" ", ""));
 
     for op in operators {
+        // ignore all functions referring to compiler builtins
+        if op.operatorType.qbNamespace == vec!["ohua".to_string(), "lang".to_string()] {
+            continue;
+        }
+
         // retrieve all argument types for the operator
         for occuring_type in get_argument_types(&op.operatorType, &typeinfo) {
             used_types.insert(occuring_type.replace(" ", ""));
