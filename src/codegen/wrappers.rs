@@ -1,8 +1,8 @@
 //! Wrapper generator for stateful functions.
 
-use std::collections::{HashMap, HashSet};
-use std::io::{Result, Write};
+use std::collections::HashSet;
 use std::fs::File;
+use std::io::{Result, Write};
 
 use ohua_types::*;
 use type_extract::TypeKnowledgeBase;
@@ -16,12 +16,19 @@ use type_extract::TypeKnowledgeBase;
 ///   Here, the function return values are cloned, when necessary.
 ///
 /// Returns a string containing the complete wrapper.
-fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>) -> String {
+fn wrap_function(
+    name: &str,
+    incoming_arcs: usize,
+    mut outgoing_arcs: Vec<usize>,
+    op_id: i32,
+) -> String {
     let mut skeleton = String::from(include_str!("templates/snippets/wrapper.in"));
     let unpack_arg = "let arg{n} = Box::from(args.pop().unwrap());\n";
 
     // set the wrapper function name
-    skeleton = skeleton.replace("{escaped_name}", name.replace("::", "_").as_ref());
+    let mut mangled_name = name.replace("::", "_");
+    mangled_name += &op_id.to_string();
+    skeleton = skeleton.replace("{escaped_name}", mangled_name.as_ref());
 
     // incoming arguments
     let mut incoming = String::new();
@@ -99,62 +106,11 @@ fn wrap_function(name: &str, incoming_arcs: usize, mut outgoing_arcs: Vec<usize>
 /// to clone returned values as necessary before boxing them).
 ///
 /// The hashset of namespaces is used to generate the correct imports to have all functions in scope.
-fn analyze_dfg(
-    ohuadata: &OhuaData,
-) -> (
-    HashMap<String, (usize, Vec<usize>, Vec<i32>)>,
-    HashSet<String>,
-) {
-    // the function map tracks the number of I/O ports a function has as well as the operators associated with a function
-    // NOTE: there might be more than one operator per function
-    let mut function_map: HashMap<String, (usize, Vec<usize>, Vec<i32>)> = HashMap::new();
+fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
     let mut namespaces = HashSet::new();
 
     // for each operator in the DFG, check the arcs and count the number of incoming and outgoing arcs
     for op in &ohuadata.graph.operators {
-        let mut in_count = 0;
-        // this vector describes the outgoing arcs, where the first entry is the position and
-        // the second the number of arcs originating from that position
-        let mut out_count: Vec<(i32, usize)> = Vec::new();
-
-        // check which arcs target the operator and which Arcs describe this Operator as their local source
-        for arc in &ohuadata.graph.arcs {
-            if arc.target.operator == op.operatorId {
-                in_count += 1;
-            }
-            match &arc.source.val {
-                &ValueType::EnvironmentVal(_) => (),
-                &ValueType::LocalVal(ref src) => if op.operatorId == src.operator {
-                    // perform a sorted insertion into the vector that describes all outgoing arcs
-                    let index = if src.index >= 0 {
-                        src.index
-                    } else {
-                        0
-                    };
-
-                    match out_count.binary_search_by_key(&index, |x| x.0) {
-                        Ok(pos) => out_count[pos].1 += 1,
-                        Err(pos) => out_count.insert(pos, (index, 1)),
-                    }
-                },
-            }
-        }
-
-        // check the special return value field to account for the Arc that will move the computed result out of the DFG
-        if ohuadata.graph.return_arc.operator == op.operatorId {
-            // basically do the same as above, insert the information about the outgoing arc into the data structure
-            let index = if ohuadata.graph.return_arc.index >= 0 {
-                ohuadata.graph.return_arc.index
-            } else {
-                0
-            };
-
-            match out_count.binary_search_by_key(&index, |x| x.0) {
-                Ok(pos) => out_count[pos].1 += 1,
-                Err(pos) => out_count.insert(pos, (index, 1)),
-            }
-        }
-
         let namespace = op.operatorType
             .qbNamespace
             .iter()
@@ -163,23 +119,65 @@ fn analyze_dfg(
             });
 
         namespaces.insert(namespace);
-        let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str()) + "::"
-            + op.operatorType.qbName.as_str();
-        // transform the vector, get rid of the first tuple entry
-        let out = out_count
-            .drain(..)
-            .unzip::<i32, usize, Vec<i32>, Vec<usize>>()
-            .1;
-        // make sure to not overwrite any pre-existing references to operators
-        if function_map.contains_key(&fn_name) {
-            let function = function_map.get_mut(&fn_name).unwrap();
-            (*function).2.push(op.operatorId);
-        } else {
-            function_map.insert(fn_name, (in_count, out, vec![op.operatorId]));
+    }
+
+    namespaces
+}
+
+/// Retrieves the I/O count for an operator, given its ID
+fn get_operator_io_by_id(
+    id: i32,
+    arcs: &Vec<Arc>,
+    return_arc: &ArcIdentifier,
+) -> (usize, Vec<usize>) {
+    let mut inputs = 0;
+    let mut outputs = Vec::new();
+
+    // check DFG for a matching input or output id
+    for arc in arcs {
+        // check for possible input match
+        if arc.target.operator == id {
+            inputs += 1;
+        }
+
+        // check for possible output match
+        if let ValueType::LocalVal(ref ident) = arc.source.val {
+            if ident.operator == id {
+                let port = if ident.index >= 0 {
+                    ident.index as usize
+                } else {
+                    0
+                };
+
+                // when we hit a port that is beyond the output vector's current reach, resize
+                if outputs.len() < (port + 1) {
+                    outputs.resize(port + 1, 0);
+                }
+
+                outputs[port] += 1;
+            }
         }
     }
 
-    (function_map, namespaces)
+    // input arcs are not inspected as they are part of the DFG (env arcs)
+
+    // inspect return arc
+    if return_arc.operator == id {
+        let port = if return_arc.index >= 0 {
+            return_arc.index as usize
+        } else {
+            0
+        };
+
+        // when we hit a port that is beyond the output vector's current reach, resize
+        if outputs.len() < (port + 1) {
+            outputs.resize(port + 1, 0);
+        }
+
+        outputs[port] += 1;
+    }
+
+    (inputs, outputs)
 }
 
 /// Wraps the arguments provided to the algorithm into an operator to allow on-demand
@@ -259,7 +257,7 @@ pub fn generate_wrappers(
     target_file: &str,
 ) -> Result<OhuaData> {
     // analyze the dataflow graph
-    let (function_map, namespaces) = analyze_dfg(&ohuadata);
+    let namespaces = analyze_namespaces(&ohuadata);
 
     let skeleton = include_str!("templates/wrappers.rs");
 
@@ -281,19 +279,19 @@ pub fn generate_wrappers(
 
     // generate function wrappers
     let mut func_wrapper = String::new();
-    for (name, io) in function_map {
-        func_wrapper.push_str(wrap_function(name.as_str(), io.0, io.1).as_str());
+    for op in &mut ohuadata.graph.operators {
+        let (inputs, outputs) = get_operator_io_by_id(
+            op.operatorId,
+            &ohuadata.graph.arcs,
+            &ohuadata.graph.return_arc,
+        );
 
-        // link the function to the corresponding operators in the ohua data structure
-        for op_id in io.2 {
-            if let Ok(pos) = ohuadata
-                .graph
-                .operators
-                .binary_search_by_key(&op_id, |op| op.operatorId)
-            {
-                ohuadata.graph.operators[pos].operatorType.func = name.replace("::", "_");
-            }
-        }
+        let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str()) + "::"
+            + op.operatorType.qbName.as_str();
+
+        func_wrapper.push_str(wrap_function(&fn_name, inputs, outputs, op.operatorId).as_str());
+
+        op.operatorType.func = fn_name.replace("::", "_") + &op.operatorId.to_string();;
     }
 
     // wrap the main arguments
