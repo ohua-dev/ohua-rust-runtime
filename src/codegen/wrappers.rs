@@ -7,6 +7,14 @@ use std::io::{Result, Write};
 use ohua_types::*;
 use type_extract::TypeKnowledgeBase;
 
+/// Data Type that describes the type of output an operator produces
+enum Output {
+    /// Only a single output is produced, which is denoted by port `-1` in the DFG dump
+    Single(usize),
+    /// The produced output is a tuple which is destructured into several ports
+    Tuple(Vec<usize>),
+}
+
 /// Generates a wrapper for a single stateful function.
 ///
 /// Therefore, the function uses a wrapper template and populates it by adding
@@ -16,12 +24,7 @@ use type_extract::TypeKnowledgeBase;
 ///   Here, the function return values are cloned, when necessary.
 ///
 /// Returns a string containing the complete wrapper.
-fn wrap_function(
-    name: &str,
-    incoming_arcs: usize,
-    mut outgoing_arcs: Vec<usize>,
-    op_id: i32,
-) -> String {
+fn wrap_function(name: &str, incoming_arcs: usize, output: Output, op_id: i32) -> String {
     let mut skeleton = String::from(include_str!("templates/snippets/wrapper.in"));
     let unpack_arg = "let arg{n} = Box::from(args.pop().unwrap());\n";
 
@@ -54,7 +57,7 @@ fn wrap_function(
     let mut outgoing = String::new();
 
     // do not unpack the tuple if there is only one retval!
-    if outgoing_arcs.len() > 1 {
+    if let Output::Tuple(mut outgoing_arcs) = output {
         for (index, count) in outgoing_arcs.drain(..).enumerate() {
             let boxed_arg = format!("Box::from(Box::new(res.{}))", index);
             let boxed_cloned_arg = format!("Box::from(Box::new(res.{}.clone())), ", index);
@@ -70,19 +73,18 @@ fn wrap_function(
         }
 
         skeleton = skeleton.replace("{outgoing_args}", &outgoing);
-    } else {
+    } else if let Output::Single(num_uses) = output {
         // TODO: Remove this hack when issue #1 is resolved
-        if outgoing_arcs.len() == 0 {
+        if num_uses == 0 {
             // return an empty vec when the value is unused
             skeleton = skeleton.replace("{outgoing_args}", "");
         } else {
-            let count = outgoing_arcs[0];
             // the arguments are cloned when necessary
-            if count > 1 {
+            if num_uses > 1 {
                 outgoing.push_str(
                     format!(
                         "vec![{}]",
-                        "Box::from(Box::new(res.clone())), ".repeat(count)
+                        "Box::from(Box::new(res.clone())), ".repeat(num_uses)
                     ).as_ref(),
                 );
             } else {
@@ -91,6 +93,9 @@ fn wrap_function(
         }
 
         skeleton = skeleton.replace("{outgoing_args}", &outgoing);
+    } else {
+        // There _is_ no other option!
+        unreachable!();
     }
 
     skeleton
@@ -125,13 +130,11 @@ fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
 }
 
 /// Retrieves the I/O count for an operator, given its ID
-fn get_operator_io_by_id(
-    id: i32,
-    arcs: &Vec<Arc>,
-    return_arc: &ArcIdentifier,
-) -> (usize, Vec<usize>) {
+fn get_operator_io_by_id(id: i32, arcs: &Vec<Arc>, return_arc: &ArcIdentifier) -> (usize, Output) {
     let mut inputs = 0;
-    let mut outputs = Vec::new();
+    let mut mult_outputs = Vec::new();
+    let mut single_outputs = 0;
+    let mut is_single_output = false;
 
     // check DFG for a matching input or output id
     for arc in arcs {
@@ -143,18 +146,18 @@ fn get_operator_io_by_id(
         // check for possible output match
         if let ValueType::LocalVal(ref ident) = arc.source.val {
             if ident.operator == id {
-                let port = if ident.index >= 0 {
-                    ident.index as usize
+                if ident.index == -1 {
+                    is_single_output = true;
+                    single_outputs += 1;
                 } else {
-                    0
-                };
+                    let port = ident.index as usize;
+                    // when we hit a port that is beyond the output vector's current reach, resize
+                    if mult_outputs.len() < (port + 1) {
+                        mult_outputs.resize(port + 1, 0);
+                    }
 
-                // when we hit a port that is beyond the output vector's current reach, resize
-                if outputs.len() < (port + 1) {
-                    outputs.resize(port + 1, 0);
+                    mult_outputs[port] += 1;
                 }
-
-                outputs[port] += 1;
             }
         }
     }
@@ -163,19 +166,29 @@ fn get_operator_io_by_id(
 
     // inspect return arc
     if return_arc.operator == id {
-        let port = if return_arc.index >= 0 {
-            return_arc.index as usize
+        if return_arc.index == -1 {
+            is_single_output = true;
+            single_outputs += 1;
         } else {
-            0
-        };
+            let port = return_arc.index as usize;
+            // when we hit a port that is beyond the output vector's current reach, resize
+            if mult_outputs.len() < (port + 1) {
+                mult_outputs.resize(port + 1, 0);
+            }
 
-        // when we hit a port that is beyond the output vector's current reach, resize
-        if outputs.len() < (port + 1) {
-            outputs.resize(port + 1, 0);
+            mult_outputs[port] += 1;
         }
-
-        outputs[port] += 1;
     }
+
+    // verify that the above yielded a consistent state
+    if (is_single_output && mult_outputs.len() > 0) || (!is_single_output && single_outputs > 0) {
+        panic!("Encountered inconsistent Operator that has tuple-destructuring arcs and single-item arcs!");
+    }
+
+    let outputs = match is_single_output {
+        true => Output::Single(single_outputs),
+        false => Output::Tuple(mult_outputs),
+    };
 
     (inputs, outputs)
 }

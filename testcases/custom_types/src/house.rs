@@ -1,15 +1,18 @@
+#[derive(Clone)]
 pub struct Human {
     pub name: String,
     pub emotional_state: EmotionalState,
     pub age: u8
 }
 
+#[derive(Clone)]
 pub struct House {
     pub rooms: u8,
     pub inhabitants: Vec<Human>,
     pub address: String
 }
 
+#[derive(Clone)]
 pub enum EmotionalState {
     Happy,
     Content,
