@@ -51,6 +51,8 @@ pub struct OperatorType {
     pub qbName: String,
     #[serde(default)]
     pub func: String,
+    #[serde(default = "yes")]
+    pub is_sfn: bool,
 }
 
 /// A simple Arc between two points in the graph.
@@ -90,6 +92,10 @@ pub struct SfDependency {
     pub qbNamespace: Vec<String>,
     #[serde(rename(deserialize = "name"))]
     pub qbName: String,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl fmt::Display for OhuaData {

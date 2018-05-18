@@ -8,7 +8,7 @@ use ohua_types::*;
 use type_extract::TypeKnowledgeBase;
 
 /// Data Type that describes the type of output an operator produces
-enum Output {
+pub enum Output {
     /// Only a single output is produced, which is denoted by port `-1` in the DFG dump
     Single(usize),
     /// The produced output is a tuple which is destructured into several ports
@@ -24,7 +24,7 @@ enum Output {
 ///   Here, the function return values are cloned, when necessary.
 ///
 /// Returns a string containing the complete wrapper.
-fn wrap_function(name: &str, incoming_arcs: usize, output: Output, op_id: i32) -> String {
+fn generate_sfn_wrapper(name: &str, incoming_arcs: usize, output: Output, op_id: i32) -> String {
     let mut skeleton = String::from(include_str!("templates/snippets/wrapper.in"));
     let unpack_arg = "let arg{n} = Box::from(args.pop().unwrap());\n";
 
@@ -101,14 +101,7 @@ fn wrap_function(name: &str, incoming_arcs: usize, output: Output, op_id: i32) -
     skeleton
 }
 
-/// Function that analyzes the DFG provided by the user. Generates a function map
-/// and a set containing all namespaces.
-///
-/// The function map describes, how many incoming and outgoing Arcs an operator has, what
-/// function it belongs to and what the corresponding operator number is.
-/// This information is used to be able to generate correct wrapper code that retrieves all
-/// arguments for a function and provides the correct number of output items (it also allows
-/// to clone returned values as necessary before boxing them).
+/// Function that analyzes the DFG provided by the user. Generates set containing all namespaces.
 ///
 /// The hashset of namespaces is used to generate the correct imports to have all functions in scope.
 fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
@@ -120,7 +113,7 @@ fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
             .qbNamespace
             .iter()
             .fold(String::new(), |acc, ref x| {
-                acc.to_owned() + if acc.len() > 0 { "::" } else { "" } + &x
+                acc.to_owned() + if !acc.is_empty() { "::" } else { "" } + &x
             });
 
         namespaces.insert(namespace);
@@ -130,7 +123,7 @@ fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
 }
 
 /// Retrieves the I/O count for an operator, given its ID
-fn get_operator_io_by_id(id: i32, arcs: &Vec<Arc>, return_arc: &ArcIdentifier) -> (usize, Output) {
+fn get_operator_io_by_id(id: i32, arcs: &[Arc], return_arc: &ArcIdentifier) -> (usize, Output) {
     let mut inputs = 0;
     let mut mult_outputs = Vec::new();
     let mut single_outputs = 0;
@@ -181,7 +174,7 @@ fn get_operator_io_by_id(id: i32, arcs: &Vec<Arc>, return_arc: &ArcIdentifier) -
     }
 
     // verify that the above yielded a consistent state
-    if (is_single_output && mult_outputs.len() > 0) || (!is_single_output && single_outputs > 0) {
+    if (is_single_output && !mult_outputs.is_empty()) || (!is_single_output && single_outputs > 0) {
         panic!("Encountered inconsistent Operator that has tuple-destructuring arcs and single-item arcs!");
     }
 
@@ -200,7 +193,7 @@ fn get_operator_io_by_id(id: i32, arcs: &Vec<Arc>, return_arc: &ArcIdentifier) -
 fn generate_mainarg_wrappers(
     first_id: i32,
     ohuadata: &OhuaData,
-    mainarg_types: &Vec<String>,
+    mainarg_types: &[String],
 ) -> (Vec<Operator>, String) {
     let template = include_str!("templates/snippets/mainarg.in");
 
@@ -250,6 +243,7 @@ fn generate_mainarg_wrappers(
                 qbNamespace: vec![],
                 qbName: fn_name.clone(),
                 func: fn_name,
+                is_sfn: true,
             },
         });
     }
@@ -279,32 +273,29 @@ pub fn generate_wrappers(
         .iter()
         .fold(String::new(), |acc, ref x| acc + "use " + x + ";\n");
 
-    /* TODO:
-     *  The fix for the problem that operators cannot have a differing number of output ports
-     *  throughout the algorithm is somewhere in the following block.
-     *  Simplest idea: Always use the maximum number of i/o ports (i.e., when the op. clones
-     *  3 times once and otherwise always only uses 1 return val, make the op always clone 3
-     *  times)
-     *
-     * ==> leads to unused clones that may impact performance but not correctness (other fixes
-     *     are welcome) ¯\_(ツ)_/¯
-     */
-
     // generate function wrappers
     let mut func_wrapper = String::new();
     for op in &mut ohuadata.graph.operators {
-        let (inputs, outputs) = get_operator_io_by_id(
-            op.operatorId,
-            &ohuadata.graph.arcs,
-            &ohuadata.graph.return_arc,
-        );
+        // we would like to handle operators differently, so don't handle them here
+        if op.operatorType.qbNamespace != vec!["ohua".to_string(), "lang".to_string()] {
+            let (inputs, outputs) = get_operator_io_by_id(
+                op.operatorId,
+                &ohuadata.graph.arcs,
+                &ohuadata.graph.return_arc,
+            );
 
-        let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str()) + "::"
-            + op.operatorType.qbName.as_str();
+            let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str()) + "::"
+                + op.operatorType.qbName.as_str();
 
-        func_wrapper.push_str(wrap_function(&fn_name, inputs, outputs, op.operatorId).as_str());
+            func_wrapper
+                .push_str(generate_sfn_wrapper(&fn_name, inputs, outputs, op.operatorId).as_str());
 
-        op.operatorType.func = fn_name.replace("::", "_") + &op.operatorId.to_string();;
+            op.operatorType.func = fn_name.replace("::", "_") + &op.operatorId.to_string();
+        } else {
+            // when we leap an operator, mark it and place a failsafe in the `func` field
+            op.operatorType.is_sfn = false;
+            op.operatorType.func = String::from("|_| panic!(\"Undefined operator function!\")");
+        }
     }
 
     // wrap the main arguments
@@ -331,7 +322,7 @@ pub fn generate_wrappers(
         .as_str();
 
     // rewrite the env arcs for any main arguments encountered
-    for mut arc in ohuadata.graph.arcs.iter_mut() {
+    for mut arc in &mut ohuadata.graph.arcs {
         if let ValueType::EnvironmentVal(offset) = arc.source.val {
             arc.source = ArcSource {
                 s_type: String::from("local"),
