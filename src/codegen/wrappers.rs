@@ -243,7 +243,7 @@ fn generate_mainarg_wrappers(
                 qbNamespace: vec![],
                 qbName: fn_name.clone(),
                 func: fn_name,
-                is_sfn: true,
+                op_type: OpType::default()
             },
         });
     }
@@ -293,7 +293,7 @@ pub fn generate_wrappers(
             op.operatorType.func = fn_name.replace("::", "_") + &op.operatorId.to_string();
         } else {
             // when we leap an operator, mark it and place a failsafe in the `func` field
-            op.operatorType.is_sfn = false;
+            op.operatorType.op_type = OpType::OhuaOperator("".into());
             op.operatorType.func = String::from("|_| panic!(\"Undefined operator function!\")");
         }
     }

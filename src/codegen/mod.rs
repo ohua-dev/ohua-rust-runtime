@@ -6,6 +6,7 @@ mod typecasts;
 mod wrappers;
 mod runtime_data;
 mod modgen;
+mod operators;
 
 use serde_json;
 use std::fs::{remove_dir_all, DirBuilder, File};
@@ -77,7 +78,7 @@ pub fn generate_ohua_runtime(
     }
 
     // generate wrapper functions for all operators
-    let altered_ohuadata = match wrappers::generate_wrappers(
+    let mut altered_ohuadata = match wrappers::generate_wrappers(
         ohua_data,
         &typeinfo,
         (output.clone() + "/wrappers.rs").as_str(),
@@ -87,6 +88,12 @@ pub fn generate_ohua_runtime(
             return Err(CodeGenerationError::WrapperGenerationFailed(err));
         }
     };
+
+    // generate operator code
+    if let Err(err) = operators::generate_operators(&mut altered_ohuadata, output.clone())
+    {
+        return Err(CodeGenerationError::OperatorCreationFailed(err));
+    }
 
     // generate the module file
     if let Err(err) =

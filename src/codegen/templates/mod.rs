@@ -4,11 +4,12 @@ mod types;
 mod generictype;
 mod wrappers;
 mod runtime;
+mod operators;
 
 use self::generictype::*;
-use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType};
+use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType, OpType};
 
-use std::thread::{self, Builder};
+use std::thread::Builder;
 use std::sync::mpsc;
 
 {ty_imports}
@@ -130,6 +131,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
                            output: vec![],
                            name: op.operatorType.qualified_name(),
                            func: op.operatorType.func,
+                           op_type: op.operatorType.op_type,
                        })
     }
 
@@ -146,50 +148,10 @@ pub fn ohua_main({input_args}) -> {return_type} {
     for op in operators.drain(..) {
         Builder::new()
                 .name(op.name.as_str().into())
-                .spawn(move || 'threadloop: loop {
-            let mut exiting = false;
-
-            // receive the arguments from all senders
-            let mut args = vec![];
-            for (index, recv) in (&op.input).iter().enumerate() {
-                if let Ok(content) = recv.recv() {
-                    if !exiting {
-                        args.push(content);
-                    } else {
-                        #[cold]
-                        // when we are in `exiting` state, we should not be here...
-                        eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
-                        break 'threadloop;
-                    }
-                } else {
-                    // when there are no messages left to receive, this operator is done
-                    if !exiting {
-                        // before entering the `exiting` state, make sure that this is valid behavior
-                        if index > 0 {
-                            #[cold]
-                            eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
-                            break 'threadloop;
-                        } else {
-                            exiting = true;
-                        }
-                    }
-                }
-            }
-
-            // when we are in `exiting` state, kill gracefully
-            if exiting {
-                break 'threadloop;
-            }
-
-            // call function & send results
-            let mut results = (op.func)(args);
-            for &(ref port, ref senders) in &op.output {
-                for sender in senders {
-                    let element_to_send = results[*port as usize].pop().expect(&format!("Could not satisfy output port {} at {}", port, op.name));
-                    sender.send(element_to_send).unwrap();
-                }
-            }
-        }).unwrap();
+                .spawn(move || match op.op_type.clone() {
+                    OpType::SfnWrapper => operators::sfn(op),
+                    OpType::OhuaOperator(ref func) => (*func)(op),
+                }).unwrap();
     }
 
     // provide the operators with input from the function arguments, if any

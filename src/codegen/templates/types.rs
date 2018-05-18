@@ -8,6 +8,7 @@ pub struct OhuaOperator {
     pub output: Vec<(u32, Vec<Sender<Box<GenericType>>>)>,
     pub name: String,
     pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
+    pub op_type: OpType,
 }
 
 pub struct OhuaData {
@@ -32,6 +33,13 @@ pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     pub qbName: String,
     pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
+    pub op_type: OpType,
+}
+
+#[derive(Clone)]
+pub enum OpType {
+    SfnWrapper,
+    OhuaOperator(Box<fn(OhuaOperator)>)
 }
 
 pub struct Arc {
