@@ -1,7 +1,7 @@
 #![allow(non_snake_case, dead_code)]
 
+use super::generictype::GenericType;
 use std::sync::mpsc::{Receiver, Sender};
-use ohua_runtime::generictype::GenericType;
 
 pub struct OhuaOperator {
     pub input: Vec<Receiver<Box<GenericType>>>,

@@ -1,2 +1,2 @@
-use ohua_runtime::generictype::*;
+use super::generictype::*;
 
