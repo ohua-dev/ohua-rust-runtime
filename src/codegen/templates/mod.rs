@@ -16,7 +16,7 @@ use std::sync::mpsc;
 
 
 fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, recv: mpsc::Receiver<Box<GenericType>>, target: u32) {
-    let mut index: usize = 0;
+    let mut index: usize = recvs.len();
 
     for &(ind, _) in recvs.iter() {
         if ind >= target {
