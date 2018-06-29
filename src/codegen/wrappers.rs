@@ -116,7 +116,9 @@ fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
                 acc.to_owned() + if !acc.is_empty() { "::" } else { "" } + &x
             });
 
-        namespaces.insert(namespace);
+        if !namespace.starts_with("ohua::lang") {
+            namespaces.insert(namespace);
+        }
     }
 
     namespaces
