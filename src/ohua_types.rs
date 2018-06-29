@@ -55,9 +55,12 @@ pub struct OperatorType {
     pub op_type: OpType,
 }
 
+/// Type of the operator. It can either be a normal wrapper around a SFN or a full-fledged Ohua operator.
 #[derive(Deserialize, Debug)]
 pub enum OpType {
+    /// Simple wrapper around a stateful function.
     SfnWrapper,
+    /// Dedicated Ohua operator, the enclosed string is the function name which is expected to be of type `Box<fn(OhuaOperator)>`.
     OhuaOperator(String),
 }
 

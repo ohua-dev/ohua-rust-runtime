@@ -19,6 +19,21 @@ pub struct Type {
     pub path: Option<Vec<String>>,
 }
 
+/// Information about a return type of a function. As types in Rust can be composited of many other types (e.g., using tuples), the `path` member might contain multiple imports.
+///
+/// An additional `components` member lists the single components the return value consists of.
+#[derive(Debug)]
+pub struct RetType {
+    /// name of the type
+    pub name: String,
+    /// single type components the return type consists of. `None` if type is not a tuple.
+    /// Types are always sorted in the order they appear.
+    pub components: Option<Vec<Type>>,
+    /// absolute import paths of the types, _including_ the type names themself. Is `None` if it's a type from the `prelude`.
+    /// There are multiple items in the vector when a composited type is used.
+    pub path: Option<Vec<String>>,
+}
+
 /// Name and type information for a single function
 #[derive(Debug)]
 pub struct FunctionInfo {
@@ -29,7 +44,7 @@ pub struct FunctionInfo {
     /// argument types the function takes
     pub arguments: Vec<Type>,
     /// return type of the function
-    pub return_val: Type,
+    pub return_val: RetType,
 }
 
 /// Lookup information for a single `use` statement
@@ -149,7 +164,7 @@ fn lookup_info_from(ident: &syn::Ident, dep: &SfDependency) -> (String, LookupIn
 }
 
 /// Starts a recursive search on the item tree of a module.
-fn traverse_item_tree(items: &[syn::Item], target: SfDependency) -> Option<(Vec<Type>, Type)> {
+fn traverse_item_tree(items: &[syn::Item], target: SfDependency) -> Option<(Vec<Type>, RetType)> {
     // TODO: Implement searches for nested modules (this will require a lookup in a mutable `target`)
     // TODO: Member functions of structs/enums do *not* work yet! Can be solved by implementing the one above
     // TODO: When recursively handing through the lookup info, provide a `Cow` value to reduce mem usage?
@@ -376,11 +391,28 @@ fn get_paths(ty: &syn::Type, lookup_table: &LookupTable) -> Option<Vec<String>> 
     }
 }
 
+/// Deconstructs the return type, returning a vector of components if it's a tuple, `None` otherwise.
+fn get_return_arg_components(ty: &syn::Type, lookup_table: &LookupTable) -> Option<Vec<Type>> {
+    match *ty {
+        syn::Type::Tuple(ref ty_tuple) => {
+            let mut components = Vec::new();
+            for member in &ty_tuple.elems {
+                components.push(Type {
+                    name: collect_type(&member),
+                    path: get_paths(&member, lookup_table),
+                });
+            }
+            Some(components)
+        },
+        _ => None
+    }
+}
+
 fn check_function(
     item_fn: &syn::ItemFn,
     target: SfDependency,
     lookup_table: &LookupTable,
-) -> Option<(Vec<Type>, Type)> {
+) -> Option<(Vec<Type>, RetType)> {
     // abort if the function is not the one we were looking for
     if item_fn.ident.to_string() != target.qbName {
         return None;
@@ -403,12 +435,14 @@ fn check_function(
 
     // get the return value
     let retval = match item_fn.decl.output {
-        syn::ReturnType::Default => Type {
+        syn::ReturnType::Default => RetType {
             name: "()".into(),
+            components: None,
             path: None,
         },
-        syn::ReturnType::Type(_, ref ret_ty) => Type {
+        syn::ReturnType::Type(_, ref ret_ty) => RetType {
             name: collect_type(&ret_ty),
+            components: get_return_arg_components(&ret_ty, lookup_table),
             path: get_paths(&ret_ty, lookup_table),
         },
     };
@@ -422,7 +456,7 @@ fn check_method_sig(
     method_sig: &syn::MethodSig,
     target: SfDependency,
     lookup_table: &LookupTable,
-) -> Option<(Vec<Type>, Type)> {
+) -> Option<(Vec<Type>, RetType)> {
     if method_sig.ident.to_string() != target.qbName {
         return None;
     }
@@ -444,12 +478,14 @@ fn check_method_sig(
 
     // get the return value
     let retval = match method_sig.decl.output {
-        syn::ReturnType::Default => Type {
+        syn::ReturnType::Default => RetType {
             name: "()".into(),
+            components: None,
             path: None,
         },
-        syn::ReturnType::Type(_, ref ret_ty) => Type {
+        syn::ReturnType::Type(_, ref ret_ty) => RetType {
             name: collect_type(&ret_ty),
+            components: get_return_arg_components(&ret_ty, lookup_table),
             path: get_paths(&ret_ty, lookup_table),
         },
     };
@@ -463,7 +499,7 @@ fn traverse_trait_tree(
     item_trait: &syn::ItemTrait,
     target: SfDependency,
     lookup_table: &LookupTable,
-) -> Option<(Vec<Type>, Type)> {
+) -> Option<(Vec<Type>, RetType)> {
     for item in &item_trait.items {
         let res = match *item {
             syn::TraitItem::Method(ref trait_method) => {
@@ -498,7 +534,7 @@ fn traverse_impl_tree(
     item_impl: &syn::ItemImpl,
     target: SfDependency,
     mut lookup_table: LookupTable,
-) -> Option<(Vec<Type>, Type)> {
+) -> Option<(Vec<Type>, RetType)> {
     // add the type this `impl` is for to the lookup data
 
     // retrieve the name of the Type we `impl` for and construct an import path

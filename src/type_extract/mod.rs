@@ -81,6 +81,17 @@ impl TypeKnowledgeBase {
 
         imports
     }
+
+    /// Searches the knowledge base for type information matching the function specified.
+    pub fn info_for_function<'a>(&'a self, name: &str, namespace: &[String]) -> Option<&'a FunctionInfo> {
+        for info in &self.functions {
+            if info.name == name && info.namespace == namespace {
+                return Some(info)
+            }
+        }
+
+        None
+    }
 }
 
 /// Takes a dependency and tries to locate the module within the working tree. Returns the file's content.
