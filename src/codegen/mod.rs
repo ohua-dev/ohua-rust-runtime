@@ -90,7 +90,7 @@ pub fn generate_ohua_runtime(
     };
 
     // generate operator code
-    if let Err(err) = operators::generate_operators(&mut altered_ohuadata, output.clone())
+    if let Err(err) = operators::generate_operators(&mut altered_ohuadata, &typeinfo, output.clone())
     {
         return Err(CodeGenerationError::OperatorCreationFailed(err));
     }

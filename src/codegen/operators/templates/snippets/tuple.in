@@ -1,0 +1,7 @@
+pub fn tuple{id}(op: OhuaOperator) {
+    {arg_unwrap}
+
+    let ret = Box::new(({args}));
+
+    op.output[0].1[0].send(Box::from(ret)).unwrap();
+}
