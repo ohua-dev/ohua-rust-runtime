@@ -1,13 +1,9 @@
-use std::fs::File;
+use std::fs::{File, read_to_string};
 use std::io::{Result, Write};
+use std::collections::HashSet;
 
 use ohua_types::{OhuaData, OpType, ValueType};
 use type_extract::TypeKnowledgeBase;
-
-// TODO: Alter structure to allow multiple operators of of the same type
-//       Do so by just checking, whether the file already exists, when this is the case, append the new operator (prepend imports)
-
-// TODO: Add `mod tuple` to mod.rs
 
 pub fn gen_tuple_operator(
     data: &mut OhuaData,
@@ -25,7 +21,7 @@ pub fn gen_tuple_operator(
     tuple_template = tuple_template.replace("{id}", &op_id.to_string());
 
     let mut arg_unwraps = String::new();
-    let mut imports = String::new();
+    let mut imports = HashSet::new();
     let mut arg_no = 0;
 
     /* The lookup of the argument types needed for unwrap is rather tricky,
@@ -60,7 +56,7 @@ pub fn gen_tuple_operator(
 
                     if let Some(ref paths) = ty_components[port as usize].path {
                         for import in paths {
-                            imports += &format!("use {};\n", import);
+                            imports.insert(import);
                         }
                     }
                 } else {
@@ -72,7 +68,7 @@ pub fn gen_tuple_operator(
 
                     if let Some(ref paths) = info.return_val.path {
                         for import in paths {
-                            imports += &format!("use {};\n", import);
+                            imports.insert(import);
                         }
                     }
                 }
@@ -95,13 +91,32 @@ pub fn gen_tuple_operator(
     data.graph.operators[index].operatorType.op_type =
         OpType::OhuaOperator(format!("operators::tuple::tuple{n}", n = op_id));
 
-    // append imports and function
-    tuple_file += imports.as_str();
-    tuple_file += "\n\n";
-    tuple_file += tuple_template.as_str();
+    let mod_path = base_path.to_string() + "/tuple.rs";
+    if let Ok(mut file_content) = read_to_string(&mod_path) {
+        // the file already exists and contains another function
+        for import in imports {
+            let use_stmt = format!("use {};\n", import);
+            // only add use statement if it is not there yet
+            if file_content.find(&use_stmt).is_none() {
+                file_content.insert_str(0, &use_stmt);
+            }
+        }
 
-    // write everything to the operator file
-    File::create(base_path.to_string() + "/tuple.rs")?.write(&tuple_file.into_bytes())?;
+        file_content += "\n\n";
+        file_content += tuple_template.as_str();
+
+        // write back to the operator file, overwriting old contents
+        File::create(&mod_path)?.write(&file_content.into_bytes())?;
+    } else {
+        // the file has to be created
+        // append imports and function
+        tuple_file += imports.drain().fold(String::new(), |acc, imp| acc + &format!("use {};\n", imp)).as_str();
+        tuple_file += "\n\n";
+        tuple_file += tuple_template.as_str();
+
+        // write everything to the operator file
+        File::create(&mod_path)?.write(&tuple_file.into_bytes())?;
+    }
 
     Ok(())
 }

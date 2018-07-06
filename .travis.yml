@@ -45,3 +45,5 @@ script:
   - cd testcases/correct_sender_placement && cargo run && cd ../../
   - cd testcases/unused_arguments && cargo run && cd ../../
   - cd testcases/custom_types/ && cargo run && cd ../../
+  - cd testcases/tuple_return/ && cargo run && cd ../../
+  - cd testcases/tuple_operator/ && cargo run && cd ../../
