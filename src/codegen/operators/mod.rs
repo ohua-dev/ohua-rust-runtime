@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::{DirBuilder, File};
 use std::io::{Result, Write};
 
@@ -15,6 +16,8 @@ pub fn generate_operators(
     let output = output_base + "/operators";
     DirBuilder::new().create(output.as_str())?;
 
+    let mut used_operators: HashSet<&str> = HashSet::new();
+
     // iterate over all operators, find the ohua operators
     for op_id in 0..data.graph.operators.len() {
         if data.graph.operators[op_id].operatorType.qbNamespace
@@ -24,13 +27,23 @@ pub fn generate_operators(
             // TODO: do a real matching, this is just for debugging
             if data.graph.operators[op_id].operatorType.qbName == "(,)".to_string() {
                 tuple::gen_tuple_operator(data, op_id, ty_info, &output)?;
+                used_operators.insert("tuple");
             }
         }
     }
 
+    // generate imports from all used operators
+    let imports = used_operators
+        .drain()
+        .fold(String::new(), |acc, imp| acc + &format!("pub mod {};\n", imp));
+
     // generate the `mod.rs` file
     let modrs = include_str!("templates/mod.rs");
-    File::create(output.clone() + "/mod.rs")?.write_fmt(format_args!("{skel}", skel = modrs))?;
+    File::create(output.clone() + "/mod.rs")?.write_fmt(format_args!(
+        "{imp}\n{skel}",
+        imp = imports,
+        skel = modrs
+    ))?;
 
     Ok(())
 }
