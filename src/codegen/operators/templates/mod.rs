@@ -1,5 +1,5 @@
-use std::thread;
 use super::types::OhuaOperator;
+use std::thread;
 
 pub fn sfn(op: OhuaOperator) {
     'threadloop: loop {
@@ -17,17 +17,15 @@ pub fn sfn(op: OhuaOperator) {
                     eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
                     break 'threadloop;
                 }
-            } else {
+            } else if !exiting {
                 // when there are no messages left to receive, this operator is done
-                if !exiting {
-                    // before entering the `exiting` state, make sure that this is valid behavior
-                    if index > 0 {
-                        #[cold]
-                        eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
-                        break 'threadloop;
-                    } else {
-                        exiting = true;
-                    }
+                // before entering the `exiting` state, make sure that this is valid behavior
+                if index > 0 {
+                    #[cold]
+                    eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
+                    break 'threadloop;
+                } else {
+                    exiting = true;
                 }
             }
         }
@@ -41,10 +39,9 @@ pub fn sfn(op: OhuaOperator) {
         let mut results = (op.func)(args);
         for &(ref port, ref senders) in &op.output {
             for sender in senders {
-                let element_to_send = results[*port as usize].pop().expect(&format!(
-                    "Could not satisfy output port {} at {}",
-                    port, op.name
-                ));
+                let element_to_send = results[*port as usize].pop().unwrap_or_else(|| {
+                    panic!("Could not satisfy output port {} at {}", port, op.name)
+                });
                 sender.send(element_to_send).unwrap();
             }
         }

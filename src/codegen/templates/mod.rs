@@ -56,7 +56,7 @@ fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericT
 }
 
 
-fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifier, input_targets: &Vec<ArcIdentifier>) -> (Vec<mpsc::Sender<Box<GenericType>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
+fn generate_channels(op_count: usize, arcs: &[Arc], return_arc: &ArcIdentifier, input_targets: &[ArcIdentifier]) -> (Vec<mpsc::Sender<Box<GenericType>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
     /* This data structure is used to assign all receivers and senders to the correct operators
        before the actual runtime is started. Each operator has a pair of senders and receivers,
        bundled together. After initialization, this structure is consumed and the channels are
@@ -72,7 +72,7 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
 
     for arc in arcs
             .iter()
-            .filter(|x| x.source.s_type == String::from("local")) {
+            .filter(|x| x.source.s_type == "local") {
         let (s, r) = mpsc::channel::<Box<GenericType>>();
 
         // place the receiver
