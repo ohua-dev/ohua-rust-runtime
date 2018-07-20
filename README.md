@@ -9,3 +9,8 @@ A documentation for the project can be obtained by running
 RUSTDOCFLAGS="--document-private-items" cargo doc
 ```
 or reading the docs inline.
+
+
+***
+The Rust Logo is trademark of the Rust programming language (https://github.com/rust-lang-nursery/rust-artwork). 
+The Ohua Logo is distributed under CC-BY (https://ohua-dev.github.io/ohua/).
