@@ -1,4 +1,4 @@
-![](https://raw.githubusercontent.com/ohua-dev/ohua/master/logos/fileIcons/iconFull/rust/export_wide_lang_transparent.png "Ohua")
+![](https://raw.githubusercontent.com/ohua-dev/ohua/master/logos/fileIcons/iconFull/rust/export_wide_lang_transparent.png "Ohua for Rust")
 
 # ohua-rust-runtime
 
