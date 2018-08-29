@@ -3,5 +3,5 @@ pub fn tuple{id}(op: OhuaOperator) {
 
     let ret = Box::new(({args}));
 
-    op.output[0].1[0].send(Box::from(ret)).unwrap();
+    op.output[0].1[0].send(ret).unwrap();
 }

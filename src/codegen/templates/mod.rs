@@ -1,34 +1,42 @@
 #![allow(unused_variables)]
 
 mod types;
-mod generictype;
 mod wrappers;
 mod runtime;
 mod operators;
 
-use self::generictype::*;
 use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType, OpType};
 
+use std::any::Any;
 use std::thread::Builder;
 use std::sync::mpsc;
 
 {ty_imports}
 
 
-fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, recv: mpsc::Receiver<Box<GenericType>>, target: u32) {
-    let mut index: usize = recvs.len();
+fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>)>, recv: mpsc::Receiver<Box<dyn Any + 'static + Send>>, target: u32) {
+    if recvs.is_empty() {
+        recvs.insert(0, (target, recv));
+    } else {
+        let mut index: usize = 0;
+        let mut found_position = false;
 
-    for &(ind, _) in recvs.iter() {
-        if ind >= target {
-            index = ind as usize;
-            break;
+        for &(ind, _) in recvs.iter() {
+            if ind >= target {
+                index = ind as usize;
+                found_position = true;
+                break;
+            }
         }
-    }
 
-    recvs.insert(index, (target, recv));
+        if !found_position {
+            index = recvs.len();
+        }
+        recvs.insert(index, (target, recv));
+    }
 }
 
-fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>, sender: mpsc::Sender<Box<GenericType>>, target: u32) {
+fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>)>, sender: mpsc::Sender<Box<dyn Any + 'static + Send>>, target: u32) {
     let mut index: usize = senders.len();
     let mut exists = false;
 
@@ -56,13 +64,13 @@ fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericT
 }
 
 
-fn generate_channels(op_count: usize, arcs: &[Arc], return_arc: &ArcIdentifier, input_targets: &[ArcIdentifier]) -> (Vec<mpsc::Sender<Box<GenericType>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
+fn generate_channels(op_count: usize, arcs: &[Arc], return_arc: &ArcIdentifier, input_targets: &[ArcIdentifier]) -> (Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>)>, Vec<(u32, Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>)>)>, mpsc::Receiver<Box<dyn Any + 'static + Send>>) {
     /* This data structure is used to assign all receivers and senders to the correct operators
        before the actual runtime is started. Each operator has a pair of senders and receivers,
        bundled together. After initialization, this structure is consumed and the channels are
        distributed to the operators
     */
-    let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)> = Vec::with_capacity(op_count);
+    let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>)>, Vec<(u32, Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>)>)> = Vec::with_capacity(op_count);
     let mut input_chans = Vec::with_capacity(input_targets.len());
 
     // initialize the channel matrix for all operators
@@ -73,7 +81,7 @@ fn generate_channels(op_count: usize, arcs: &[Arc], return_arc: &ArcIdentifier, 
     for arc in arcs
             .iter()
             .filter(|x| x.source.s_type == "local") {
-        let (s, r) = mpsc::channel::<Box<GenericType>>();
+        let (s, r) = mpsc::channel::<Box<dyn Any + 'static + Send>>();
 
         // place the receiver
         sorted_recv_insertion(&mut channels[(arc.target.operator - 1) as usize].0, r, arc.target.index as u32);
@@ -139,7 +147,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
     let (input_ports, mut channels, output_port) = generate_channels(operators.len(), &runtime_data.graph.arcs, &runtime_data.graph.return_arc, &runtime_data.graph.input_targets);
 
     for (index, mut op_channels) in channels.drain(..).enumerate() {
-        operators[index].input = op_channels.0.drain(..).unzip::<u32, mpsc::Receiver<Box<GenericType>>, Vec<u32>, Vec<mpsc::Receiver<Box<GenericType>>>>().1;
+        operators[index].input = op_channels.0.drain(..).unzip::<u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>, Vec<u32>, Vec<mpsc::Receiver<Box<dyn Any + 'static + Send>>>>().1;
 
         operators[index].output = op_channels.1;
     }
@@ -166,5 +174,5 @@ pub fn ohua_main({input_args}) -> {return_type} {
     let res = output_port.recv().unwrap();
 
     // return the result
-    *Box::<{return_type}>::from(res)
+    *res.downcast().unwrap()
 }

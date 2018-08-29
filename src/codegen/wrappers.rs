@@ -26,7 +26,7 @@ pub enum Output {
 /// Returns a string containing the complete wrapper.
 fn generate_sfn_wrapper(name: &str, incoming_arcs: usize, output: Output, op_id: i32) -> String {
     let mut skeleton = String::from(include_str!("templates/snippets/wrapper.in"));
-    let unpack_arg = "let arg{n} = Box::from(args.pop().unwrap());\n";
+    let unpack_arg = "let arg{n} = args.remove(0).downcast().unwrap();\n";
 
     // set the wrapper function name
     let mut mangled_name = name.replace("::", "_");
@@ -59,8 +59,8 @@ fn generate_sfn_wrapper(name: &str, incoming_arcs: usize, output: Output, op_id:
     // do not unpack the tuple if there is only one retval!
     if let Output::Tuple(mut outgoing_arcs) = output {
         for (index, count) in outgoing_arcs.drain(..).enumerate() {
-            let boxed_arg = format!("Box::from(Box::new(res.{}))", index);
-            let boxed_cloned_arg = format!("Box::from(Box::new(res.{}.clone())), ", index);
+            let boxed_arg = format!("Box::new(res.{})", index);
+            let boxed_cloned_arg = format!("Box::new(res.{}.clone()), ", index);
 
             // clone the arguments if necessary
             if count > 1 {
@@ -82,13 +82,10 @@ fn generate_sfn_wrapper(name: &str, incoming_arcs: usize, output: Output, op_id:
             // the arguments are cloned when necessary
             if num_uses > 1 {
                 outgoing.push_str(
-                    format!(
-                        "vec![{}]",
-                        "Box::from(Box::new(res.clone())), ".repeat(num_uses)
-                    ).as_ref(),
+                    format!("vec![{}]", "Box::new(res.clone()), ".repeat(num_uses)).as_ref(),
                 );
             } else {
-                outgoing.push_str(format!("vec![{}]", "Box::from(Box::new(res))").as_ref());
+                outgoing.push_str(format!("vec![{}]", "Box::new(res)").as_ref());
             }
         }
 
@@ -109,7 +106,8 @@ fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
 
     // for each operator in the DFG, check the arcs and count the number of incoming and outgoing arcs
     for op in &ohuadata.graph.operators {
-        let namespace = op.operatorType
+        let namespace = op
+            .operatorType
             .qbNamespace
             .iter()
             .fold(String::new(), |acc, ref x| {
@@ -220,16 +218,11 @@ fn generate_mainarg_wrappers(
         // there is an optimization: unused mainargs will not be wrapped!
         match num_uses {
             0 => continue,
-            1 => {
-                wrapper = wrapper.replace(
-                    "{argument}",
-                    format!("Box::from(Box::new({}))", "arg").as_str(),
-                )
-            }
+            1 => wrapper = wrapper.replace("{argument}", format!("Box::new({})", "arg").as_str()),
             _ => {
                 wrapper = wrapper.replace(
                     "{argument}",
-                    format!("Box::from(Box::new({}.clone())), ", "arg")
+                    format!("Box::new({}.clone()), ", "arg")
                         .repeat(num_uses)
                         .as_str(),
                 )
@@ -245,7 +238,7 @@ fn generate_mainarg_wrappers(
                 qbNamespace: vec![],
                 qbName: fn_name.clone(),
                 func: fn_name,
-                op_type: OpType::default()
+                op_type: OpType::default(),
             },
         });
     }
@@ -286,7 +279,8 @@ pub fn generate_wrappers(
                 &ohuadata.graph.return_arc,
             );
 
-            let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str()) + "::"
+            let fn_name = String::from(op.operatorType.qbNamespace.last().unwrap().as_str())
+                + "::"
                 + op.operatorType.qbName.as_str();
 
             func_wrapper

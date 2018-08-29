@@ -49,7 +49,7 @@ pub fn gen_tuple_operator(
                     };
 
                     arg_unwraps += &format!(
-                        "let arg{n}: {ty} = *Box::from(op.input[{n}].recv().unwrap());\n    ",
+                        "let arg{n}: {ty} = *op.input[{n}].recv().unwrap().downcast().unwrap();\n    ",
                         n = arg_no,
                         ty = ty_components[port as usize].name
                     );
@@ -61,7 +61,7 @@ pub fn gen_tuple_operator(
                     }
                 } else {
                     arg_unwraps += &format!(
-                        "let arg{n}: {ty} = *Box::from(op.input[{n}].recv().unwrap());\n    ",
+                        "let arg{n}: {ty} = *op.input[{n}].recv().unwrap().downcast().unwrap();\n    ",
                         n = arg_no,
                         ty = info.return_val.name
                     );
