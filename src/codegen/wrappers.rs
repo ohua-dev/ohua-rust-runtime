@@ -18,10 +18,10 @@ pub enum Output {
 /// Generates a wrapper for a single stateful function.
 ///
 /// Therefore, the function uses a wrapper template and populates it by adding
-/// * the necessary re-boxing (typecasts) for all input values
-/// * providing the casted arguments to the underlying function
-/// * re-boxing the output values into `GenericType`s and returning them as vector.
-///   Here, the function return values are cloned, when necessary.
+/// * the necessary downcasts for all input values
+/// * providing the received arguments to the underlying function
+/// * re-boxing the output values and upcasting them into a vector of `Any`
+///   trait items. Here, the function return values are cloned, when necessary.
 ///
 /// Returns a string containing the complete wrapper.
 fn generate_sfn_wrapper(name: &str, incoming_arcs: usize, output: Output, op_id: i32) -> String {
