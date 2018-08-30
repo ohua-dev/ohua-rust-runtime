@@ -14,6 +14,7 @@ pub enum CodeGenerationError {
     WrapperGenerationFailed(io::Error),
     ModfileGenerationFailed(io::Error),
     RuntimeDataCreationFailed(io::Error),
+    OperatorCreationFailed(io::Error),
 }
 
 impl fmt::Display for CodeGenerationError {
@@ -29,6 +30,7 @@ impl fmt::Display for CodeGenerationError {
             WrapperGenerationFailed(ref io_err) => write!(f, "Unable to create the function wrappers. {}", io_err),
             ModfileGenerationFailed(ref io_err) => write!(f, "Unable to create the module file. {}", io_err),
             RuntimeDataCreationFailed(ref io_err) => write!(f, "Unable to create the runtime data structure file. {}", io_err),
+            OperatorCreationFailed(ref io_err) => write!(f, "Unable to create the operator modules. {}", io_err),
         }
     }
 }
@@ -46,6 +48,7 @@ impl Error for CodeGenerationError {
             WrapperGenerationFailed(_) => "Wrapper generation failed",
             ModfileGenerationFailed(_) => "ModFile generation failed",
             RuntimeDataCreationFailed(_) => "Runtime Structure generation failed",
+            OperatorCreationFailed(_) => "Operator Module generation failed"
         }
     }
 }

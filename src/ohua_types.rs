@@ -51,6 +51,23 @@ pub struct OperatorType {
     pub qbName: String,
     #[serde(default)]
     pub func: String,
+    #[serde(default)]
+    pub op_type: OpType,
+}
+
+/// Type of the operator. It can either be a normal wrapper around a SFN or a full-fledged Ohua operator.
+#[derive(Deserialize, Debug)]
+pub enum OpType {
+    /// Simple wrapper around a stateful function.
+    SfnWrapper,
+    /// Dedicated Ohua operator, the enclosed string is the function name which is expected to be of type `Box<fn(OhuaOperator)>`.
+    OhuaOperator(String),
+}
+
+impl Default for OpType {
+    fn default() -> Self {
+        OpType::SfnWrapper
+    }
 }
 
 /// A simple Arc between two points in the graph.
@@ -99,7 +116,11 @@ impl fmt::Display for OhuaData {
             sf_deps += format!("{}, ", dep).as_str();
         }
 
-        write!(f, "OhuaData {{graph: {}, mainArity: {}, sfDependencies: vec![{}]}}", self.graph, self.mainArity, sf_deps)
+        write!(
+            f,
+            "OhuaData {{graph: {}, mainArity: {}, sfDependencies: vec![{}]}}",
+            self.graph, self.mainArity, sf_deps
+        )
     }
 }
 
@@ -126,7 +147,11 @@ impl fmt::Display for DFGraph {
 
 impl fmt::Display for Operator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Operator {{operatorId: {}, operatorType: {}}}", self.operatorId, self.operatorType)
+        write!(
+            f,
+            "Operator {{operatorId: {}, operatorType: {}}}",
+            self.operatorId, self.operatorType
+        )
     }
 }
 
@@ -150,19 +175,36 @@ impl fmt::Display for OperatorType {
             namesp += format!("String::from(\"{}\"), ", space).as_str();
         }
 
-        write!(f, "OperatorType {{qbNamespace: vec![{}], qbName: String::from(\"{}\"), func: Box::new({})}}", namesp, self.qbName, self.func)
+        write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\"), func: Box::new({fn}), op_type: {ty}}}", namesp = namesp, name = self.qbName, fn = self.func, ty = self.op_type)
+    }
+}
+
+impl fmt::Display for OpType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            OpType::SfnWrapper => write!(f, "OpType::SfnWrapper"),
+            OpType::OhuaOperator(ref op) => write!(f, "OpType::OhuaOperator(Box::new({}))", op),
+        }
     }
 }
 
 impl fmt::Display for Arc {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Arc {{target: {}, source: {}}}", self.target, self.source)
+        write!(
+            f,
+            "Arc {{target: {}, source: {}}}",
+            self.target, self.source
+        )
     }
 }
 
 impl fmt::Display for ArcIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ArcIdentifier {{operator: {}, index: {}}}", self.operator, self.index)
+        write!(
+            f,
+            "ArcIdentifier {{operator: {}, index: {}}}",
+            self.operator, self.index
+        )
     }
 }
 
@@ -170,14 +212,18 @@ impl fmt::Display for ValueType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &ValueType::EnvironmentVal(x) => write!(f, "ValueType::EnvironmentVal({})", x),
-            &ValueType::LocalVal(ref arc_id)  => write!(f, "ValueType::LocalVal({})", arc_id),
+            &ValueType::LocalVal(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
         }
     }
 }
 
 impl fmt::Display for ArcSource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ArcSource {{s_type: String::from(\"{}\"), val: {}}}", self.s_type, self.val)
+        write!(
+            f,
+            "ArcSource {{s_type: String::from(\"{}\"), val: {}}}",
+            self.s_type, self.val
+        )
     }
 }
 
@@ -188,6 +234,10 @@ impl fmt::Display for SfDependency {
             namesp += format!("String::from(\"{}\"), ", space).as_str();
         }
 
-        write!(f, "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}", namesp, self.qbName)
+        write!(
+            f,
+            "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}",
+            namesp, self.qbName
+        )
     }
 }

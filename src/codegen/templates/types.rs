@@ -1,13 +1,15 @@
 #![allow(non_snake_case, dead_code)]
 
+use std::any::Any;
+use std::marker::Send;
 use std::sync::mpsc::{Receiver, Sender};
-use ohua_runtime::generictype::GenericType;
 
 pub struct OhuaOperator {
-    pub input: Vec<Receiver<Box<GenericType>>>,
-    pub output: Vec<(u32, Vec<Sender<Box<GenericType>>>)>,
+    pub input: Vec<Receiver<Box<dyn Any + 'static + Send>>>,
+    pub output: Vec<(u32, Vec<Sender<Box<dyn Any + 'static + Send>>>)>,
     pub name: String,
-    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
+    pub func: Box<fn(Vec<Box<dyn Any + 'static + Send>>) -> Vec<Vec<Box<dyn Any + 'static + Send>>>>,
+    pub op_type: OpType,
 }
 
 pub struct OhuaData {
@@ -31,7 +33,14 @@ pub struct Operator {
 pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     pub qbName: String,
-    pub func: Box<fn(Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>>>,
+    pub func: Box<fn(Vec<Box<dyn Any + 'static + Send>>) -> Vec<Vec<Box<dyn Any + 'static + Send>>>>,
+    pub op_type: OpType,
+}
+
+#[derive(Clone)]
+pub enum OpType {
+    SfnWrapper,
+    OhuaOperator(Box<fn(OhuaOperator)>)
 }
 
 pub struct Arc {

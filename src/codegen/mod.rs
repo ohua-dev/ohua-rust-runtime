@@ -2,10 +2,10 @@
 //!
 //! This program generates a rust runtime for an [Ohua](https://github.com/ohua-dev) algorithm, which can be defined in an `ohuac` file.
 
-mod typecasts;
 mod wrappers;
 mod runtime_data;
 mod modgen;
+mod operators;
 
 use serde_json;
 use std::fs::{remove_dir_all, DirBuilder, File};
@@ -67,17 +67,8 @@ pub fn generate_ohua_runtime(
         return Err(CodeGenerationError::StaticPopulationFailed(err));
     }
 
-    // generate all necessary type casts for the Arcs
-    if let Err(err) = typecasts::generate_casts(
-        &ohua_data.graph.operators,
-        &typeinfo,
-        (output.clone() + "/generictype.rs").as_str(),
-    ) {
-        return Err(CodeGenerationError::CastGenerationFailed(err));
-    }
-
     // generate wrapper functions for all operators
-    let altered_ohuadata = match wrappers::generate_wrappers(
+    let mut altered_ohuadata = match wrappers::generate_wrappers(
         ohua_data,
         &typeinfo,
         (output.clone() + "/wrappers.rs").as_str(),
@@ -87,6 +78,12 @@ pub fn generate_ohua_runtime(
             return Err(CodeGenerationError::WrapperGenerationFailed(err));
         }
     };
+
+    // generate operator code
+    if let Err(err) = operators::generate_operators(&mut altered_ohuadata, &typeinfo, output.clone())
+    {
+        return Err(CodeGenerationError::OperatorCreationFailed(err));
+    }
 
     // generate the module file
     if let Err(err) =

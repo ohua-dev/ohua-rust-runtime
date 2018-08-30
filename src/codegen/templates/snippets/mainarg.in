@@ -1,6 +1,6 @@
 
-pub fn mainarg{n}(mut args: Vec<Box<GenericType>>) -> Vec<Vec<Box<GenericType>>> {
-    let arg: {arg_type} = *Box::from(args.pop().unwrap());
+pub fn mainarg{n}(mut args: Vec<Box<dyn Any + 'static + Send>>) -> Vec<Vec<Box<dyn Any + 'static + Send>>> {
+    let arg: {arg_type} = *args.pop().unwrap().downcast().unwrap();
 
     vec![vec![{argument}]]
 }

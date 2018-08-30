@@ -45,6 +45,11 @@ impl TypeKnowledgeBase {
         };
 
         for dep in algo_spec.sfDependencies.drain(..) {
+            // ignore any `ohua/lang` dependencies here, these are compiler builtins
+            if dep.qbNamespace == vec!["ohua".to_string(), "lang".to_string()] {
+                continue;
+            }
+
             // find correlating module
             let module_content: String =
                 find_module(dep.qbNamespace.clone(), algo_info.src.as_path())?;
@@ -75,6 +80,17 @@ impl TypeKnowledgeBase {
         }
 
         imports
+    }
+
+    /// Searches the knowledge base for type information matching the function specified.
+    pub fn info_for_function<'a>(&'a self, name: &str, namespace: &[String]) -> Option<&'a FunctionInfo> {
+        for info in &self.functions {
+            if info.name == name && info.namespace == namespace {
+                return Some(info)
+            }
+        }
+
+        None
     }
 }
 

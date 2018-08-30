@@ -1,33 +1,42 @@
 #![allow(unused_variables)]
 
 mod types;
-mod generictype;
 mod wrappers;
 mod runtime;
+mod operators;
 
-use self::generictype::*;
-use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType};
+use self::types::{Arc, ArcIdentifier, OhuaOperator, ValueType, OpType};
 
-use std::thread::{self, Builder};
+use std::any::Any;
+use std::thread::Builder;
 use std::sync::mpsc;
 
 {ty_imports}
 
 
-fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, recv: mpsc::Receiver<Box<GenericType>>, target: u32) {
-    let mut index: usize = 0;
+fn sorted_recv_insertion(recvs: &mut Vec<(u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>)>, recv: mpsc::Receiver<Box<dyn Any + 'static + Send>>, target: u32) {
+    if recvs.is_empty() {
+        recvs.insert(0, (target, recv));
+    } else {
+        let mut index: usize = 0;
+        let mut found_position = false;
 
-    for &(ind, _) in recvs.iter() {
-        if ind >= target {
-            index = ind as usize;
-            break;
+        for &(ind, _) in recvs.iter() {
+            if ind >= target {
+                index = ind as usize;
+                found_position = true;
+                break;
+            }
         }
-    }
 
-    recvs.insert(index, (target, recv));
+        if !found_position {
+            index = recvs.len();
+        }
+        recvs.insert(index, (target, recv));
+    }
 }
 
-fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>, sender: mpsc::Sender<Box<GenericType>>, target: u32) {
+fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>)>, sender: mpsc::Sender<Box<dyn Any + 'static + Send>>, target: u32) {
     let mut index: usize = senders.len();
     let mut exists = false;
 
@@ -55,13 +64,13 @@ fn sorted_sender_insertion(senders: &mut Vec<(u32, Vec<mpsc::Sender<Box<GenericT
 }
 
 
-fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifier, input_targets: &Vec<ArcIdentifier>) -> (Vec<mpsc::Sender<Box<GenericType>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)>, mpsc::Receiver<Box<GenericType>>) {
+fn generate_channels(op_count: usize, arcs: &[Arc], return_arc: &ArcIdentifier, input_targets: &[ArcIdentifier]) -> (Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>, Vec<(Vec<(u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>)>, Vec<(u32, Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>)>)>, mpsc::Receiver<Box<dyn Any + 'static + Send>>) {
     /* This data structure is used to assign all receivers and senders to the correct operators
        before the actual runtime is started. Each operator has a pair of senders and receivers,
        bundled together. After initialization, this structure is consumed and the channels are
        distributed to the operators
     */
-    let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<GenericType>>)>, Vec<(u32, Vec<mpsc::Sender<Box<GenericType>>>)>)> = Vec::with_capacity(op_count);
+    let mut channels: Vec<(Vec<(u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>)>, Vec<(u32, Vec<mpsc::Sender<Box<dyn Any + 'static + Send>>>)>)> = Vec::with_capacity(op_count);
     let mut input_chans = Vec::with_capacity(input_targets.len());
 
     // initialize the channel matrix for all operators
@@ -71,8 +80,8 @@ fn generate_channels(op_count: usize, arcs: &Vec<Arc>, return_arc: &ArcIdentifie
 
     for arc in arcs
             .iter()
-            .filter(|x| x.source.s_type == String::from("local")) {
-        let (s, r) = mpsc::channel::<Box<GenericType>>();
+            .filter(|x| x.source.s_type == "local") {
+        let (s, r) = mpsc::channel::<Box<dyn Any + 'static + Send>>();
 
         // place the receiver
         sorted_recv_insertion(&mut channels[(arc.target.operator - 1) as usize].0, r, arc.target.index as u32);
@@ -130,6 +139,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
                            output: vec![],
                            name: op.operatorType.qualified_name(),
                            func: op.operatorType.func,
+                           op_type: op.operatorType.op_type,
                        })
     }
 
@@ -137,7 +147,7 @@ pub fn ohua_main({input_args}) -> {return_type} {
     let (input_ports, mut channels, output_port) = generate_channels(operators.len(), &runtime_data.graph.arcs, &runtime_data.graph.return_arc, &runtime_data.graph.input_targets);
 
     for (index, mut op_channels) in channels.drain(..).enumerate() {
-        operators[index].input = op_channels.0.drain(..).unzip::<u32, mpsc::Receiver<Box<GenericType>>, Vec<u32>, Vec<mpsc::Receiver<Box<GenericType>>>>().1;
+        operators[index].input = op_channels.0.drain(..).unzip::<u32, mpsc::Receiver<Box<dyn Any + 'static + Send>>, Vec<u32>, Vec<mpsc::Receiver<Box<dyn Any + 'static + Send>>>>().1;
 
         operators[index].output = op_channels.1;
     }
@@ -146,50 +156,10 @@ pub fn ohua_main({input_args}) -> {return_type} {
     for op in operators.drain(..) {
         Builder::new()
                 .name(op.name.as_str().into())
-                .spawn(move || 'threadloop: loop {
-            let mut exiting = false;
-
-            // receive the arguments from all senders
-            let mut args = vec![];
-            for (index, recv) in (&op.input).iter().enumerate() {
-                if let Ok(content) = recv.recv() {
-                    if !exiting {
-                        args.push(content);
-                    } else {
-                        #[cold]
-                        // when we are in `exiting` state, we should not be here...
-                        eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
-                        break 'threadloop;
-                    }
-                } else {
-                    // when there are no messages left to receive, this operator is done
-                    if !exiting {
-                        // before entering the `exiting` state, make sure that this is valid behavior
-                        if index > 0 {
-                            #[cold]
-                            eprintln!("[Error] Thread {} entered an inconsistent state. Some input Arcs are empty, others not.", thread::current().name().unwrap());
-                            break 'threadloop;
-                        } else {
-                            exiting = true;
-                        }
-                    }
-                }
-            }
-
-            // when we are in `exiting` state, kill gracefully
-            if exiting {
-                break 'threadloop;
-            }
-
-            // call function & send results
-            let mut results = (op.func)(args);
-            for &(ref port, ref senders) in &op.output {
-                for sender in senders {
-                    let element_to_send = results[*port as usize].pop().expect(&format!("Could not satisfy output port {} at {}", port, op.name));
-                    sender.send(element_to_send).unwrap();
-                }
-            }
-        }).unwrap();
+                .spawn(move || match op.op_type.clone() {
+                    OpType::SfnWrapper => operators::sfn(op),
+                    OpType::OhuaOperator(ref func) => (*func)(op),
+                }).unwrap();
     }
 
     // provide the operators with input from the function arguments, if any
@@ -204,5 +174,5 @@ pub fn ohua_main({input_args}) -> {return_type} {
     let res = output_port.recv().unwrap();
 
     // return the result
-    *Box::<{return_type}>::from(res)
+    *res.downcast().unwrap()
 }
