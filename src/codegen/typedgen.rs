@@ -1,5 +1,4 @@
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
 
 /*
 The code below compiles and runs at https://play.rust-lang.org/?gist=6bfbf0b7cea3031437bdf94e11bcca61&version=stable&mode=debug&edition=2015
@@ -36,8 +35,8 @@ fn my_simple_sf(a: i32) -> i32 {
 }
 
 fn value_test() {
-    let (sender1, receiver1): (Sender<i32>, Receiver<i32>) = mpsc::channel();
-    let (sender2, receiver2): (Sender<i32>, Receiver<i32>) = mpsc::channel();
+    let (sender1, receiver1) = mpsc::channel();
+    let (sender2, receiver2) = mpsc::channel();
 
     sender1.send(5).unwrap();
     run_sf!([receiver1], sender2, my_simple_sf);
