@@ -75,11 +75,11 @@ fn get_num_inputs(op:&i32, arcs:&Vec<Arc>) -> usize {
 fn generate_in_arcs_vec(op:&i32, arcs:&Vec<Arc>) -> String {
     let mut r = "[".to_owned();
     let n = get_num_inputs(&op, &arcs);
-    for i in 0..(n-1) {
-        r.push_str(&(i.to_string() + ", "));
-    }
     if n > 0 {
-        r.push_str(&(n-1).to_string());
+        for i in 0..(n-1) {
+            r.push_str(&(format!("sf_{}_in_{},", op.to_string(), i.to_string())));
+        }
+        r.push_str(&format!("sf_{}_in_{},", op.to_string(),(n-1).to_string()));
     } else {
         // do nothing
     }
@@ -213,6 +213,6 @@ pub fn code_generation(compiled:OhuaData) -> String {
              mainArity: 1,
              sfDependencies: Vec::new(), };
          let generated = code_generation(compiled);
-         println!("{:?}", &generated);
+         println!("{:#?}", &generated);
      }
  }
