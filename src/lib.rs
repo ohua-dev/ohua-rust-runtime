@@ -47,10 +47,6 @@ pub fn find_ohuac_files(
     Ok(found)
 }
 
-pub fn run_typed_gen() {
-    codegen::run_typedgen();
-}
-
 /// Convenience wrapper to run the build process by calling a single function. For easy use from within a `build.rs` file.
 pub fn run_ohua_build() {
     let tmp_dir = match TempDir::new("ohuac-rs") {

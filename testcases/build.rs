@@ -3,6 +3,5 @@
 extern crate ohua_rust_runtime;
 
 fn main() {
-    ohua_rust_runtime::run_typed_gen();
-    // ohua_rust_runtime::run_ohua_build();
+    ohua_rust_runtime::run_ohua_build();
 }

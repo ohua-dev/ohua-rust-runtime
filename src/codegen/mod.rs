@@ -17,8 +17,6 @@ use ohuac::OhuaProduction;
 use type_extract::TypeKnowledgeBase;
 use self::runtime_data::generate_runtime_data;
 
-use self::typedgen::run_typedgen_tests;
-
 /// This function writes all static files to their respective locations,
 /// returning an error when the write operation exitted unsuccessfully.
 fn populate_static_files(path: String) -> io::Result<()> {
@@ -26,10 +24,6 @@ fn populate_static_files(path: String) -> io::Result<()> {
     File::create(path.clone() + "/types.rs")?.write_all(type_file)?;
 
     Ok(())
-}
-
-pub fn run_typedgen() {
-    run_typedgen_tests();
 }
 
 /// Runtime Generator

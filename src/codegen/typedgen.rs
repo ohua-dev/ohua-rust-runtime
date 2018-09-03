@@ -1,10 +1,8 @@
 use std::sync::mpsc;
 use std::sync::mpsc::{Sender, Receiver};
-use std::ops::Add;
 
 use ohua_types::OhuaData;
 use ohua_types::ValueType;
-use ohua_types::ArcSource;
 use ohua_types::Arc;
 
 /**
@@ -29,7 +27,7 @@ fn collect<T>(n:Receiver<i32>, data:Receiver<T>, out:Sender<Vec<T>>) -> () {
     }
 }
 
-pub trait Task {
+trait Task {
     fn run(&self) -> ();
 }
 
@@ -90,7 +88,7 @@ fn generate_in_arcs_vec(op:&i32, arcs:&Vec<Arc>) -> String {
 }
 
 // TODO extend to allow ops to have multiple outputs/outgoing arcs
-fn code_generation(compiled:OhuaData) -> String {
+pub fn code_generation(compiled:OhuaData) -> String {
 
     // generate the code for the function references
     let mut header = "".to_owned();
@@ -142,39 +140,79 @@ fn code_generation(compiled:OhuaData) -> String {
      code
 }
 
-/**
- Test code starts here:
- */
 
-fn my_simple_sf(a:i32) -> i32 {
-    a + 5
-}
+ #[cfg(test)]
+ mod tests {
+     use super::*;
 
-fn value_test() {
-    let (sender1, receiver1) = mpsc::channel();
-    let (sender2, receiver2) = mpsc::channel();
+     use std::sync::mpsc;
 
-    sender1.send(5).unwrap();
-    run_sf!([receiver1], sender2, my_simple_sf);
+     use ohua_types::OhuaData;
+     use ohua_types::ValueType;
+     use ohua_types::ArcSource;
+     use ohua_types::Operator;
+     use ohua_types::Arc;
+     use ohua_types::OperatorType;
+     use ohua_types::OpType;
+     use ohua_types::ArcIdentifier;
+     use ohua_types::DFGraph;
 
-    let result = receiver2.recv().unwrap();
-    println!("Result: {}", result);
-    assert!(result == 10);
-}
+     fn my_simple_sf(a:i32) -> i32 {
+         a + 5
+     }
 
-fn code_gen_test() {
-    //let (sender1, receiver1): (Sender<i32>, Receiver<i32>) = mpsc::channel();
-    //let (sender2, receiver2): (Sender<i32>, Receiver<i32>) = mpsc::channel();
-    println!(
-        "{:?}",
-        stringify!(run_sf!([receiver1], sender2, my_simple_sf))
-    );
-    let a = run_sf!([receiver1], sender2, my_simple_sf, stringify);
-    println!("{:?}", a);
-    assert!(a == "{\nlet r = my_simple_sf ( receiver1 . recv (  ) . unwrap (  ) ) ; sender2 . send\n( r ) . unwrap (  ) }")
-}
+     #[test]
+     fn sf_macro_value_test() {
+         let (sender1, receiver1) = mpsc::channel();
+         let (sender2, receiver2) = mpsc::channel();
 
-pub fn run_typedgen_tests() {
-    value_test();
-    code_gen_test();
-}
+         sender1.send(5).unwrap();
+         run_sf!([receiver1], sender2, my_simple_sf);
+
+         let result = receiver2.recv().unwrap();
+         println!("Result: {}", result);
+         assert!(result == 10);
+     }
+
+     #[test]
+     fn sf_macro_code_test() {
+         //let (sender1, receiver1): (Sender<i32>, Receiver<i32>) = mpsc::channel();
+         //let (sender2, receiver2): (Sender<i32>, Receiver<i32>) = mpsc::channel();
+         println!(
+             "{:?}",
+             stringify!(run_sf!([receiver1], sender2, my_simple_sf))
+         );
+         let a = run_sf!([receiver1], sender2, my_simple_sf, stringify);
+         println!("{:?}", a);
+         assert!(a == "{\nlet r = my_simple_sf ( receiver1 . recv (  ) . unwrap (  ) ) ; sender2 . send\n( r ) . unwrap (  ) }")
+     }
+
+     #[test]
+     fn full_code_gen_test() {
+         let compiled = OhuaData {
+             graph: DFGraph { operators: vec![
+                                             Operator { operatorId: 0,
+                                                        operatorType: OperatorType { qbNamespace: Vec::new(),
+                                                                                     qbName: "none".to_string(),
+                                                                                     func: "some_sfn".to_string(),
+                                                                                     op_type: OpType::SfnWrapper,},},
+                                             Operator { operatorId: 1,
+                                                        operatorType: OperatorType { qbNamespace: Vec::new(),
+                                                                                     qbName: "none".to_string(),
+                                                                                     func: "some_other_sfn".to_string(),
+                                                                                     op_type: OpType::SfnWrapper,},},
+                                             ],
+                              arcs: vec![Arc { target: ArcIdentifier { operator: 1,
+                                                                       index: 0, },
+                                               source: ArcSource { s_type: "".to_string(),
+                                                                   val: ValueType::LocalVal(ArcIdentifier { operator: 0,
+                                                                                                            index: -1, }),},}],
+                              return_arc: ArcIdentifier { operator: 1,
+                                                          index: -1,},
+                              input_targets: Vec::new(),},
+             mainArity: 1,
+             sfDependencies: Vec::new(), };
+         let generated = code_generation(compiled);
+         println!("{:?}", &generated);
+     }
+ }
