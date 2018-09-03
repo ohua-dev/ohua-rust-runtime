@@ -63,20 +63,20 @@ macro_rules! run_sf {
         }
 }
 
-fn get_op_id(source:ArcSource) -> i32 {
-    match source.val {
+fn get_op_id(val:&ValueType) -> &i32 {
+    match val {
         ValueType::EnvironmentVal(i) => { i }
-        ValueType::LocalVal(i) => { i.operator }
+        ValueType::LocalVal(i) => { &(i.operator) }
     }
 }
 
-fn get_num_inputs(op:i32, arcs:Vec<Arc>) -> usize {
-    arcs.iter().filter(|arc| arc.target.operator == op).count()
+fn get_num_inputs(op:&i32, arcs:&Vec<Arc>) -> usize {
+    arcs.iter().filter(|arc| &(arc.target.operator) == op).count()
 }
 
-fn generate_in_arcs_vec(op:i32, arcs:Vec<Arc>) -> String {
+fn generate_in_arcs_vec(op:&i32, arcs:&Vec<Arc>) -> String {
     let mut r = "[".to_owned();
-    let n = get_num_inputs(op, arcs);
+    let n = get_num_inputs(&op, &arcs);
     for i in 0..(n-1) {
         r.push_str(&(i.to_string() + ", "));
     }
@@ -96,12 +96,8 @@ fn code_generation(compiled:OhuaData) -> String {
     let mut header = "".to_owned();
 
     // templates for arcs and stateful functions
-    let arc_template = |source, target, target_idx| { "let (sf_{source}_out, sf_{target}_in_{target_idx}) = mpsc::channel();\n".replace("{source}",source)
-                                                                                                                               .replace("{target}", target)
-                                                                                                                               .replace("{target_idx}", target_idx)};
-    let sf_template = |in_arcs, out_arc, sfn| { "tasks.push(run_sf!({in_arcs}, {out_arc}, {sfn}))".replace("{in_arcs}", in_arcs)
-                                                                                                  .replace("{out_arc}", out_arc)
-                                                                                                  .replace("{sfn}", sfn)};
+    let arc_template = |source, target, target_idx| { format!("let (sf_{}_out, sf_{}_in_{}) = mpsc::channel();\n", source, target, target_idx)};
+    let sf_template = |in_arcs, out_arc, sfn| { format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)};
 
     /**
         Generate the arc code. This yields:
@@ -111,11 +107,11 @@ fn code_generation(compiled:OhuaData) -> String {
     for arc in compiled.graph.arcs.iter() {
         arc_code.push_str(
             &(arc_template(
-                &get_op_id(arc.source).to_string(),
-                &arc.target.operator.to_string(),
-                &arc.target.index.to_string()
-            ))
-        );
+                    get_op_id(&(arc.source.val)).to_string(),
+                    arc.target.operator.to_string(),
+                    arc.target.index.to_string()
+                )
+            ));
     }
 
     /**
@@ -127,8 +123,8 @@ fn code_generation(compiled:OhuaData) -> String {
      for op in compiled.graph.operators.iter() {
          sf_code.push_str(
              &(sf_template(
-                 &generate_in_arcs_vec(op.operatorId, compiled.graph.arcs), // this is not efficient but it works for now
-                 &"sf_{op_id}_out".replace("{op_id}", &op.operatorId.to_string()),
+                 generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs)), // this is not efficient but it works for now
+                 format!("sf_{}_out", op.operatorId.to_string()),
                  &op.operatorType.func
              ))
          );
