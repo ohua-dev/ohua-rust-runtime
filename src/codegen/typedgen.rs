@@ -1,6 +1,33 @@
 use std::sync::mpsc;
+use std::sync::mpsc::{Sender, Receiver};
+use std::ops::Add;
 
 use ohua_types::OhuaData;
+use ohua_types::ValueType;
+use ohua_types::ArcSource;
+use ohua_types::Arc;
+
+/**
+ Example operator: collect
+ */
+
+// a fully explicit operator version
+fn collect<T>(n:Receiver<i32>, data:Receiver<T>, out:Sender<Vec<T>>) -> () {
+    loop {
+        match n.recv() {
+            Err(_) => {
+                // channels are closed by Rust itself
+            }
+            Ok(num) => {
+                let mut buffered = Vec::new();
+                for _x in 0..num {
+                    buffered.push(data.recv().unwrap());
+                }
+                out.send(buffered).unwrap();
+            }
+        }
+    }
+}
 
 pub trait Task {
     fn run(&self) -> ();
@@ -38,29 +65,43 @@ macro_rules! run_sf {
 
 fn get_op_id(source:ArcSource) -> i32 {
     match source.val {
-        ValueType::EnvironmentVal(id) => id
-        ValueType::LocalVal(id) => id.operator
+        ValueType::EnvironmentVal(i) => { i }
+        ValueType::LocalVal(i) => { i.operator }
     }
 }
 
-fn get_num_inputs(op:i32, arcs: Vec<Arc>) -> usize {
+fn get_num_inputs(op:i32, arcs:Vec<Arc>) -> usize {
     arcs.iter().filter(|arc| arc.target.operator == op).count()
 }
 
-fn generate_in_arcs_vec() -> String {
-
+fn generate_in_arcs_vec(op:i32, arcs:Vec<Arc>) -> String {
+    let mut r = "[".to_owned();
+    let n = get_num_inputs(op, arcs);
+    for i in 0..(n-1) {
+        r.push_str(&(i.to_string() + ", "));
+    }
+    if n > 0 {
+        r.push_str(&(n-1).to_string());
+    } else {
+        // do nothing
+    }
+    r.push_str("]");
+    r
 }
 
 // TODO extend to allow ops to have multiple outputs/outgoing arcs
-fn code_generation(compiled::OhuaData) -> () {
+fn code_generation(compiled:OhuaData) -> String {
 
     // generate the code for the function references
-    let mut header = "use std::collections::LinkedList;\n\n".to_owned();
+    let mut header = "".to_owned();
 
-
-
-    let arc_template = |source target target_idx| = "let (sf_" + source + "_out, sf_" + target + "_in_" + target_idx + ") = mpsc::channel();\n"
-    let sf_template = |in_arcs out_arc sfn| = "tasks.push_back(run_sf!(" + in_arcs + ", " + out_arc + ", " + sfn + "))";
+    // templates for arcs and stateful functions
+    let arc_template = |source, target, target_idx| { "let (sf_{source}_out, sf_{target}_in_{target_idx}) = mpsc::channel();\n".replace("{source}",source)
+                                                                                                                               .replace("{target}", target)
+                                                                                                                               .replace("{target_idx}", target_idx)};
+    let sf_template = |in_arcs, out_arc, sfn| { "tasks.push(run_sf!({in_arcs}, {out_arc}, {sfn}))".replace("{in_arcs}", in_arcs)
+                                                                                                  .replace("{out_arc}", out_arc)
+                                                                                                  .replace("{sfn}", sfn)};
 
     /**
         Generate the arc code. This yields:
@@ -68,11 +109,13 @@ fn code_generation(compiled::OhuaData) -> () {
      */
     let mut arc_code = "".to_owned();
     for arc in compiled.graph.arcs.iter() {
-        arc_code.push_str(&(arc_template(
-            get_op_id(arc.source),
-            arc.target.operator,
-            arc.target.index)
-        ));
+        arc_code.push_str(
+            &(arc_template(
+                &get_op_id(arc.source).to_string(),
+                &arc.target.operator.to_string(),
+                &arc.target.index.to_string()
+            ))
+        );
     }
 
     /**
@@ -80,26 +123,34 @@ fn code_generation(compiled::OhuaData) -> () {
         let mut tasks: LinkedList<Task> = LinkedList::new();
         (tasks.append(run_sf!([{sf_{op_id}_in_{idx}}]*, sf_{op_id}_out, sfn));)+
      */
-     let mut sf_code = "let mut tasks: LinkedList<Task> = LinkedList::new();\n".to_owned();
+     let mut sf_code = "let mut tasks = Vec::new();\n".to_owned();
      for op in compiled.graph.operators.iter() {
-         sf_code.push_str(&(sf_template(
-             generate_in_arcs_vec(op.operatorId, compiled.graph.arcs), // this is not efficient but it works for now
-             "sf_" + op.operatorId + "_out",
-             op.operatorType.func
-         )));
+         sf_code.push_str(
+             &(sf_template(
+                 &generate_in_arcs_vec(op.operatorId, compiled.graph.arcs), // this is not efficient but it works for now
+                 &"sf_{op_id}_out".replace("{op_id}", &op.operatorId.to_string()),
+                 &op.operatorType.func
+             ))
+         );
      }
 
      // the final call
      let run_it = "run_ohua(tasks)".to_owned();
-     header.push_str(header)
-           .push_str("\n\n")
-           .push_str(arc_code)
-           .push_str("\n")
-           .push_str(sf_code)
-           .push_str(run_it)
+     let mut code = "".to_owned();
+     code.push_str(&header);
+     code.push_str("\n\n");
+     code.push_str(&arc_code);
+     code.push_str("\n");
+     code.push_str(&sf_code);
+     code.push_str(&run_it);
+     code
 }
 
-fn my_simple_sf(a: i32) -> i32 {
+/**
+ Test code starts here:
+ */
+
+fn my_simple_sf(a:i32) -> i32 {
     a + 5
 }
 
@@ -127,7 +178,7 @@ fn code_gen_test() {
     assert!(a == "{\nlet r = my_simple_sf ( receiver1 . recv (  ) . unwrap (  ) ) ; sender2 . send\n( r ) . unwrap (  ) }")
 }
 
-fn main() {
+pub fn run_typedgen_tests() {
     value_test();
     code_gen_test();
 }
