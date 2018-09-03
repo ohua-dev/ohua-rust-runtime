@@ -29,8 +29,6 @@ use std::fs;
 use std::env::current_dir;
 use std::error::Error;
 
-use codegen::run_typedgen;
-
 /// Recursively searches all subdirectories for `.ohuac` files
 pub fn find_ohuac_files(
     current_path: PathBuf,

@@ -29,7 +29,7 @@ fn populate_static_files(path: String) -> io::Result<()> {
 }
 
 pub fn run_typedgen() {
-
+    run_typedgen_tests();
 }
 
 /// Runtime Generator
