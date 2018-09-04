@@ -1,16 +1,16 @@
-use std::sync::mpsc;
-use std::sync::mpsc::{Sender, Receiver};
+#![allow(unused_macros, dead_code, unused_doc_comments)]
+use std::sync::mpsc::{Receiver, Sender};
 
+use ohua_types::Arc;
 use ohua_types::OhuaData;
 use ohua_types::ValueType;
-use ohua_types::Arc;
 
 /**
  Example operator: collect
  */
 
 // a fully explicit operator version
-fn collect<T>(n:Receiver<i32>, data:Receiver<T>, out:Sender<Vec<T>>) -> () {
+fn collect<T>(n: Receiver<i32>, data: Receiver<T>, out: Sender<Vec<T>>) -> () {
     loop {
         match n.recv() {
             Err(_) => {
@@ -43,9 +43,10 @@ Check out the construction of the macro. It allows to write test cases for the c
 (In Clojure/Lisp there is macroexpand which is missing in Rust, so I used this little trick here.)
 */
 
-
 macro_rules! id {
-    ($e:expr) => { $e }
+    ($e:expr) => {
+        $e
+    };
 }
 
 // TODO turn this into a loop and exit when an error on the input channel occurs
@@ -63,25 +64,31 @@ macro_rules! run_sf {
         }
 }
 
-fn get_op_id(val:&ValueType) -> &i32 {
+fn get_op_id(val: &ValueType) -> &i32 {
     match val {
-        ValueType::EnvironmentVal(i) => { i }
-        ValueType::LocalVal(i) => { &(i.operator) }
+        ValueType::EnvironmentVal(i) => i,
+        ValueType::LocalVal(i) => &(i.operator),
     }
 }
 
-fn get_num_inputs(op:&i32, arcs:&Vec<Arc>) -> usize {
-    arcs.iter().filter(|arc| &(arc.target.operator) == op).count()
+fn get_num_inputs(op: &i32, arcs: &Vec<Arc>) -> usize {
+    arcs.iter()
+        .filter(|arc| &(arc.target.operator) == op)
+        .count()
 }
 
-fn generate_in_arcs_vec(op:&i32, arcs:&Vec<Arc>) -> String {
+fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> String {
     let mut r = "[".to_owned();
     let n = get_num_inputs(&op, &arcs);
     if n > 0 {
-        for i in 0..(n-1) {
+        for i in 0..(n - 1) {
             r.push_str(&(format!("sf_{}_in_{},", op.to_string(), i.to_string())));
         }
-        r.push_str(&format!("sf_{}_in_{},", op.to_string(),(n-1).to_string()));
+        r.push_str(&format!(
+            "sf_{}_in_{},",
+            op.to_string(),
+            (n - 1).to_string()
+        ));
     } else {
         // do nothing
     }
@@ -90,15 +97,21 @@ fn generate_in_arcs_vec(op:&i32, arcs:&Vec<Arc>) -> String {
 }
 
 // TODO extend to allow ops to have multiple outputs/outgoing arcs
-pub fn code_generation(compiled:OhuaData) -> String {
-
+pub fn code_generation(compiled: OhuaData) -> String {
     // generate the code for the function references
     // TODO import statements
     let mut header = "".to_owned();
 
     // templates for arcs and stateful functions
-    let arc_template = |source, target, target_idx| { format!("let (sf_{}_out, sf_{}_in_{}) = mpsc::channel();\n", source, target, target_idx)};
-    let sf_template = |in_arcs, out_arc, sfn| { format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)};
+    let arc_template = |source, target, target_idx| {
+        format!(
+            "let (sf_{}_out, sf_{}_in_{}) = mpsc::channel();\n",
+            source, target, target_idx
+        )
+    };
+    let sf_template = |in_arcs, out_arc, sfn| {
+        format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)
+    };
 
     /**
         Generate the arc code. This yields:
@@ -108,11 +121,11 @@ pub fn code_generation(compiled:OhuaData) -> String {
     for arc in compiled.graph.arcs.iter() {
         arc_code.push_str(
             &(arc_template(
-                    get_op_id(&(arc.source.val)).to_string(),
-                    arc.target.operator.to_string(),
-                    arc.target.index.to_string()
-                )
-            ));
+                get_op_id(&(arc.source.val)).to_string(),
+                arc.target.operator.to_string(),
+                arc.target.index.to_string(),
+            )),
+        );
     }
 
     /**
@@ -120,29 +133,61 @@ pub fn code_generation(compiled:OhuaData) -> String {
         let mut tasks: LinkedList<Task> = LinkedList::new();
         (tasks.append(run_sf!([{sf_{op_id}_in_{idx}}]*, sf_{op_id}_out, sfn));)+
      */
-     let mut sf_code = "let mut tasks = Vec::new();\n".to_owned();
-     for op in compiled.graph.operators.iter() {
-         sf_code.push_str(
-             &(sf_template(
-                 generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs)), // this is not efficient but it works for now
-                 format!("sf_{}_out", op.operatorId.to_string()),
-                 &op.operatorType.func
-             ))
-         );
-     }
+    let mut sf_code = "let mut tasks = Vec::new();\n".to_owned();
+    for op in compiled.graph.operators.iter() {
+        sf_code.push_str(
+            &(sf_template(
+                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs)), // this is not efficient but it works for now
+                format!("sf_{}_out", op.operatorId.to_string()),
+                &op.operatorType.func,
+            )),
+        );
+    }
 
-     // the final call
-     let run_it = "run_ohua(tasks)".to_owned();
-     let mut code = "".to_owned();
-     code.push_str(&header);
-     code.push_str("\n\n");
-     code.push_str(&arc_code);
-     code.push_str("\n");
-     code.push_str(&sf_code);
-     code.push_str(&run_it);
-     code
+    // the final call
+    let run_it = "run_ohua(tasks)".to_owned();
+    let mut code = "".to_owned();
+    code.push_str(&header);
+    code.push_str("\n\n");
+    code.push_str(&arc_code);
+    code.push_str("\n");
+    code.push_str(&sf_code);
+    code.push_str(&run_it);
+    code
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::mpsc;
+
+    use ohua_types::Arc;
+    use ohua_types::ArcIdentifier;
+    use ohua_types::ArcSource;
+    use ohua_types::DFGraph;
+    use ohua_types::OhuaData;
+    use ohua_types::OpType;
+    use ohua_types::Operator;
+    use ohua_types::OperatorType;
+    use ohua_types::ValueType;
+
+    fn my_simple_sf(a: i32) -> i32 {
+        a + 5
+    }
+
+    #[test]
+    fn sf_macro_value_test() {
+        let (sender1, receiver1) = mpsc::channel();
+        let (sender2, receiver2) = mpsc::channel();
+
+        sender1.send(5).unwrap();
+        run_sf!([receiver1], sender2, my_simple_sf);
+
+        let result = receiver2.recv().unwrap();
+        println!("Result: {}", result);
+        assert!(result == 10);
+    }
 
  #[cfg(test)]
  mod tests {
@@ -193,28 +238,49 @@ pub fn code_generation(compiled:OhuaData) -> String {
      #[test]
      fn full_code_gen_test() {
          let compiled = OhuaData {
-             graph: DFGraph { operators: vec![
-                                             Operator { operatorId: 0,
-                                                        operatorType: OperatorType { qbNamespace: Vec::new(),
-                                                                                     qbName: "none".to_string(),
-                                                                                     func: "some_sfn".to_string(),
-                                                                                     op_type: OpType::SfnWrapper,},},
-                                             Operator { operatorId: 1,
-                                                        operatorType: OperatorType { qbNamespace: Vec::new(),
-                                                                                     qbName: "none".to_string(),
-                                                                                     func: "some_other_sfn".to_string(),
-                                                                                     op_type: OpType::SfnWrapper,},},
-                                             ],
-                              arcs: vec![Arc { target: ArcIdentifier { operator: 1,
-                                                                       index: 0, },
-                                               source: ArcSource { s_type: "".to_string(),
-                                                                   val: ValueType::LocalVal(ArcIdentifier { operator: 0,
-                                                                                                            index: -1, }),},}],
-                              return_arc: ArcIdentifier { operator: 1,
-                                                          index: -1,},
-                              input_targets: Vec::new(),},
+             graph: DFGraph {
+                 operators: vec![
+                     Operator {
+                         operatorId: 0,
+                         operatorType: OperatorType {
+                             qbNamespace: Vec::new(),
+                             qbName: "none".to_string(),
+                             func: "some_sfn".to_string(),
+                             op_type: OpType::SfnWrapper,
+                         },
+                     },
+                     Operator {
+                         operatorId: 1,
+                         operatorType: OperatorType {
+                             qbNamespace: Vec::new(),
+                             qbName: "none".to_string(),
+                             func: "some_other_sfn".to_string(),
+                             op_type: OpType::SfnWrapper,
+                         },
+                     },
+                 ],
+                 arcs: vec![Arc {
+                     target: ArcIdentifier {
+                         operator: 1,
+                         index: 0,
+                     },
+                     source: ArcSource {
+                         s_type: "".to_string(),
+                         val: ValueType::LocalVal(ArcIdentifier {
+                             operator: 0,
+                             index: -1,
+                         }),
+                     },
+                 }],
+                 return_arc: ArcIdentifier {
+                     operator: 1,
+                     index: -1,
+                 },
+                 input_targets: Vec::new(),
+             },
              mainArity: 1,
-             sfDependencies: Vec::new(), };
+             sfDependencies: Vec::new(),
+         };
          let generated = code_generation(compiled);
          println!("Generated code:\n\n{}\n\n", &generated);
      }
