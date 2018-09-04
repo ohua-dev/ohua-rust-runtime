@@ -11,3 +11,6 @@ serde_json = "1.0"
 tempdir = "0.3"
 syn = { version = "0.13", features = ["full", "extra-traits"] }
 quote = "0.5" # same version as in syn
+
+[lib]
+proc-macro = true

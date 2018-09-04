@@ -48,6 +48,8 @@ macro_rules! id {
     ($e:expr) => { $e }
 }
 
+// TODO turn this into a loop and exit when an error on the input channel occurs
+// TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
 macro_rules! run_sf {
   ( [$($input:ident),*], $output:ident, $sf:ident) => { run_sf!([$($input),*], $output, $sf, id) };
   ( [$($input:ident),*],
@@ -91,6 +93,7 @@ fn generate_in_arcs_vec(op:&i32, arcs:&Vec<Arc>) -> String {
 pub fn code_generation(compiled:OhuaData) -> String {
 
     // generate the code for the function references
+    // TODO import statements
     let mut header = "".to_owned();
 
     // templates for arcs and stateful functions
@@ -213,6 +216,6 @@ pub fn code_generation(compiled:OhuaData) -> String {
              mainArity: 1,
              sfDependencies: Vec::new(), };
          let generated = code_generation(compiled);
-         println!("{:#?}", &generated);
+         println!("Generated code:\n\n{}\n\n", &generated);
      }
  }
