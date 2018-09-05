@@ -96,21 +96,13 @@ fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> String {
     r
 }
 
-// TODO extend to allow ops to have multiple outputs/outgoing arcs
-pub fn code_generation(compiled: OhuaData) -> String {
-    // generate the code for the function references
-    // TODO import statements
-    let mut header = "".to_owned();
-
+pub fn generate_arcs(compiled: OhuaData) -> String {
     // templates for arcs and stateful functions
     let arc_template = |source, target, target_idx| {
         format!(
             "let (sf_{}_out, sf_{}_in_{}) = mpsc::channel();\n",
             source, target, target_idx
         )
-    };
-    let sf_template = |in_arcs, out_arc, sfn| {
-        format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)
     };
 
     /**
@@ -128,6 +120,15 @@ pub fn code_generation(compiled: OhuaData) -> String {
         );
     }
 
+    arc_code
+}
+
+// TODO extend to allow ops to have multiple outputs/outgoing arcs
+pub fn generate_sfns(compiled: OhuaData) -> String {
+    let sf_template = |in_arcs, out_arc, sfn| {
+        format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)
+    };
+
     /**
         Generate the sf code. This yields:
         let mut tasks: LinkedList<Task> = LinkedList::new();
@@ -144,50 +145,8 @@ pub fn code_generation(compiled: OhuaData) -> String {
         );
     }
 
-    // the final call
-    let run_it = "run_ohua(tasks)".to_owned();
-    let mut code = "".to_owned();
-    code.push_str(&header);
-    code.push_str("\n\n");
-    code.push_str(&arc_code);
-    code.push_str("\n");
-    code.push_str(&sf_code);
-    code.push_str(&run_it);
-    code
+    sf_code
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use std::sync::mpsc;
-
-    use ohua_types::Arc;
-    use ohua_types::ArcIdentifier;
-    use ohua_types::ArcSource;
-    use ohua_types::DFGraph;
-    use ohua_types::OhuaData;
-    use ohua_types::OpType;
-    use ohua_types::Operator;
-    use ohua_types::OperatorType;
-    use ohua_types::ValueType;
-
-    fn my_simple_sf(a: i32) -> i32 {
-        a + 5
-    }
-
-    #[test]
-    fn sf_macro_value_test() {
-        let (sender1, receiver1) = mpsc::channel();
-        let (sender2, receiver2) = mpsc::channel();
-
-        sender1.send(5).unwrap();
-        run_sf!([receiver1], sender2, my_simple_sf);
-
-        let result = receiver2.recv().unwrap();
-        println!("Result: {}", result);
-        assert!(result == 10);
-    }
 
  #[cfg(test)]
  mod tests {
@@ -281,7 +240,9 @@ mod tests {
              mainArity: 1,
              sfDependencies: Vec::new(),
          };
-         let generated = code_generation(compiled);
-         println!("Generated code:\n\n{}\n\n", &generated);
+         let generated_arcs = generate_arcs(compiled);
+         println!("Generated code for arcs:\n\n{}\n\n", &generated_arcs);
+         let generated_sfns = generate_sfns(compiled);
+         println!("Generated code for sfns:\n\n{}\n\n", &generated_sfns);
      }
  }

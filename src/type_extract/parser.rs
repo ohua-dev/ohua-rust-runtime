@@ -1,8 +1,11 @@
+extern crate proc_macro2;
+
 use std::collections::{HashMap, HashSet};
 use ohua_types::SfDependency;
 use errors::TypeExtractionError;
 use syn;
-use quote::{ToTokens, Tokens};
+use quote::ToTokens;
+use self::proc_macro2::TokenStream;
 
 // TODO: Clean up this mess
 
@@ -283,7 +286,7 @@ fn resolve_use_stmt(item_use: &syn::UseTree, current_state: Option<LookupInfo>) 
 }
 
 pub fn collect_type(argument: &syn::Type) -> String {
-    let mut tokens = Tokens::new();
+    let mut tokens = TokenStream::new();
     argument.to_tokens(&mut tokens);
 
     tokens.to_string().replace(" ", "")

@@ -4,19 +4,25 @@
 //!
 //! TODO: Expand me! (Issue: [#15](https://github.com/ohua-dev/ohua-rust-runtime/issues/15))
 
+mod integration;
+
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+#[macro_use]
 extern crate syn;
+#[macro_use]
 extern crate quote;
 extern crate tempdir;
 
-pub mod errors;
-pub mod ohua_types;
-pub mod type_extract;
-pub mod ohuac;
-pub mod codegen;
+
+mod errors;
+mod ohua_types;
+mod type_extract;
+mod ohuac;
+mod codegen;
+
 
 use codegen::generate_ohua_runtime;
 use errors::*;
@@ -30,7 +36,7 @@ use std::env::current_dir;
 use std::error::Error;
 
 /// Recursively searches all subdirectories for `.ohuac` files
-pub fn find_ohuac_files(
+fn find_ohuac_files(
     current_path: PathBuf,
     mut found: Vec<PathBuf>,
 ) -> io::Result<Vec<PathBuf>> {
@@ -48,7 +54,7 @@ pub fn find_ohuac_files(
 }
 
 /// Convenience wrapper to run the build process by calling a single function. For easy use from within a `build.rs` file.
-pub fn run_ohua_build() {
+fn run_ohua_build() {
     let tmp_dir = match TempDir::new("ohuac-rs") {
         Ok(dir) => dir.into_path(),
         Err(io_err) => panic!("Unable to create a temp directory. {}", io_err),

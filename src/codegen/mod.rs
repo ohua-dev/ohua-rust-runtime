@@ -6,7 +6,7 @@ mod wrappers;
 mod runtime_data;
 mod modgen;
 mod operators;
-mod typedgen;
+pub mod typedgen;
 
 use serde_json;
 use std::fs::{remove_dir_all, DirBuilder, File};
