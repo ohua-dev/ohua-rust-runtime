@@ -107,37 +107,11 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
     let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
 
-    // generate imports
-    let namespaces = codegen::wrappers::analyze_namespaces(&ohua_data);
-    let imports = namespaces
-        .iter()
-        .fold(String::new(), |acc, ref x| acc + "use " + x + ";\n");
-
-    // let stream = TokenStream::new();
-    // let tokens: Result<TokenStream, LexError> = stream.from_str(&code);
-
-    // TODO relocated the overall structure into a quote
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
-    let header_code: proc_macro2::TokenStream = syn::parse_str(&imports).unwrap();
-    let arc_code: proc_macro2::TokenStream = syn::parse_str(&generate_arcs(&ohua_data)).unwrap();
-    let op_code: proc_macro2::TokenStream = syn::parse_str(&generate_sfns(&ohua_data)).unwrap(); // Vec<String>
-
-    let final_code = quote!{
-        {
-            #header_code
-
-            #arc_code
-
-            #op_code
-
-            run_ohua(tasks)
-        }
-    };
-
+    let final_code = generate_code(&ohua_data);
     println!("{}", final_code);
-
     // Hand the output tokens back to the compiler
-    final_code.into()
+    final_code.into() // this converts from proc_macro2::TokenStream to proc_macro::TokenStream
 }
 
 fn locate_ohuac_file(path: syn::ExprPath) -> Option<PathBuf> {

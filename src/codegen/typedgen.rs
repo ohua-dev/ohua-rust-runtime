@@ -1,9 +1,11 @@
 #![allow(unused_macros, dead_code, unused_doc_comments)]
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver,Sender};
 
 use ohua_types::Arc;
 use ohua_types::OhuaData;
 use ohua_types::ValueType;
+
+use proc_macro2::{Ident,Span,TokenStream};
 
 /**
  Example operator: collect
@@ -27,43 +29,6 @@ fn collect<T>(n: Receiver<i32>, data: Receiver<T>, out: Sender<Vec<T>>) -> () {
     }
 }
 
-trait Task {
-    fn run(&self) -> ();
-}
-
-/*
-The code below compiles and runs at https://play.rust-lang.org/?gist=6bfbf0b7cea3031437bdf94e11bcca61&version=stable&mode=debug&edition=2015
-It shows a macro to create type safe code for stateful functions.
-TODO:
-  - This needs to be extended to have the "operator" of the stateful function loop until the input channels are closed.
-  - The code in run_sf should actually create and return a task. A task is just an abstraction/trait for us to plug the ops onto threads and run them.
-  - We need a similar macro for running built-in operators.
-
-Check out the construction of the macro. It allows to write test cases for the code to be generated.
-(In Clojure/Lisp there is macroexpand which is missing in Rust, so I used this little trick here.)
-*/
-
-macro_rules! id {
-    ($e:expr) => {
-        $e
-    };
-}
-
-// TODO turn this into a loop and exit when an error on the input channel occurs
-// TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
-macro_rules! run_sf {
-  ( [$($input:ident),*], $output:ident, $sf:ident) => { run_sf!([$($input),*], $output, $sf, id) };
-  ( [$($input:ident),*],
-    $output:ident,
-    $sf:ident,
-    $trace:ident ) => {
-        $trace!({
-            let r = $sf( $($input.recv().unwrap()),* );
-            $output.send(r).unwrap()
-            });
-        }
-}
-
 fn get_op_id(val: &ValueType) -> &i32 {
     match val {
         ValueType::EnvironmentVal(i) => i,
@@ -77,76 +42,76 @@ fn get_num_inputs(op: &i32, arcs: &Vec<Arc>) -> usize {
         .count()
 }
 
-fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> String {
-    let mut r = "[".to_owned();
+fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
     let n = get_num_inputs(&op, &arcs);
-    if n > 0 {
-        for i in 0..(n - 1) {
-            r.push_str(&(format!("sf_{}_in_{},", op.to_string(), i.to_string())));
+    (0..n).map(|i| { Ident::new(&format!("sf_{}_in_{}", op.to_string(), i.to_string()),
+                                Span::call_site()) }).collect()
+}
+
+pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
+    let outs = compiled.graph.arcs.iter().map(|arc| {
+        let op = get_op_id(&(arc.source.val));
+        Ident::new(&format!("sf_{}_out", op), Span::call_site())
+    });
+    let ins = compiled.graph.arcs.iter().map(|arc| {
+        Ident::new(&format!("sf_{}_in_{}", arc.target.operator.to_string(), arc.target.index.to_string()),
+                   Span::call_site())
+    });
+
+    quote!{
+        #(let (#outs, #ins) = std::sync::mpsc::channel();)*
+    }
+}
+
+// TODO
+pub fn generate_ops() -> () {
+    unimplemented!()
+}
+
+pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
+    let sf_codes : Vec<TokenStream> = compiled.graph.operators.iter().map(|op| {
+        let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+        let out_arc = Ident::new(&format!("sf_{}_out", op.operatorId.to_string()), Span::call_site());
+        let sf = Ident::new(&op.operatorType.func, Span::call_site());
+        // TODO turn this into a loop and exit when an error on the input channel occurs
+        // TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
+        quote!{
+            let r = #sf( #(#in_arcs.recv().unwrap()),* );
+            #out_arc.send(r).unwrap();
         }
-        r.push_str(&format!(
-            "sf_{}_in_{},",
-            op.to_string(),
-            (n - 1).to_string()
-        ));
-    } else {
-        // do nothing
+    }).collect();
+
+    quote!{
+        let mut tasks = Vec::new();
+        #(tasks.push(|| { #sf_codes }); )*
     }
-    r.push_str("]");
-    r
 }
 
-pub fn generate_arcs(compiled: &OhuaData) -> String {
-    // templates for arcs and stateful functions
-    let arc_template = |source, target, target_idx| {
-        format!(
-            "let (sf_{}_out, sf_{}_in_{}) = std::sync::mpsc::channel();\n",
-            source, target, target_idx
-        )
-    };
+pub fn generate_code(compiled: &OhuaData) -> TokenStream {
+    // generate imports
+    // FIXME use quote instead!
+    // let namespaces = codegen::wrappers::analyze_namespaces(&compiled);
+    // let imports = namespaces
+    //     .iter()
+    //     .fold(String::new(), |acc, ref x| acc + "use " + x + ";\n");
 
-    /**
-        Generate the arc code. This yields:
-        (let (sf_{op_id}_out, sf_{op_id}_in_{idx}) = mpsc::channel();)+
-     */
-    let mut arc_code = "".to_owned();
-    for arc in compiled.graph.arcs.iter() {
-        arc_code.push_str(
-            &(arc_template(
-                get_op_id(&(arc.source.val)).to_string(),
-                arc.target.operator.to_string(),
-                arc.target.index.to_string(),
-            )),
-        );
+    let arc_code = generate_arcs(&compiled);
+    let op_code = generate_sfns(&compiled);
+
+    quote!{
+        {
+            // #header_code
+
+            #arc_code
+
+            #op_code
+
+            run_ohua(tasks)
+        }
     }
-
-    arc_code
 }
 
-// TODO extend to allow ops to have multiple outputs/outgoing arcs
-pub fn generate_sfns(compiled: &OhuaData) -> String {
-    let sf_template = |in_arcs, out_arc, sfn| {
-        format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)
-    };
 
-    /**
-        Generate the sf code. This yields:
-        let mut tasks: LinkedList<Task> = LinkedList::new();
-        (tasks.append(run_sf!([{sf_{op_id}_in_{idx}}]*, sf_{op_id}_out, sfn));)+
-     */
-    let mut sf_code = "let mut tasks = Vec::new();\n".to_owned();
-    for op in compiled.graph.operators.iter() {
-        sf_code.push_str(
-            &(sf_template(
-                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs)), // this is not efficient but it works for now
-                format!("sf_{}_out", op.operatorId.to_string()),
-                &op.operatorType.func,
-            )),
-        );
-    }
-
-    sf_code
-}
 
  #[cfg(test)]
  mod tests {
@@ -166,32 +131,6 @@ pub fn generate_sfns(compiled: &OhuaData) -> String {
 
      fn my_simple_sf(a:i32) -> i32 {
          a + 5
-     }
-
-     #[test]
-     fn sf_macro_value_test() {
-         let (sender1, receiver1) = mpsc::channel();
-         let (sender2, receiver2) = mpsc::channel();
-
-         sender1.send(5).unwrap();
-         run_sf!([receiver1], sender2, my_simple_sf);
-
-         let result = receiver2.recv().unwrap();
-         println!("Result: {}", result);
-         assert!(result == 10);
-     }
-
-     #[test]
-     fn sf_macro_code_test() {
-         //let (sender1, receiver1): (Sender<i32>, Receiver<i32>) = mpsc::channel();
-         //let (sender2, receiver2): (Sender<i32>, Receiver<i32>) = mpsc::channel();
-         println!(
-             "{:?}",
-             stringify!(run_sf!([receiver1], sender2, my_simple_sf))
-         );
-         let a = run_sf!([receiver1], sender2, my_simple_sf, stringify);
-         println!("{:?}", a);
-         assert!(a == "{\nlet r = my_simple_sf ( receiver1 . recv (  ) . unwrap (  ) ) ; sender2 . send\n( r ) . unwrap (  ) }")
      }
 
      #[test]
@@ -240,9 +179,12 @@ pub fn generate_sfns(compiled: &OhuaData) -> String {
              mainArity: 1,
              sfDependencies: Vec::new(),
          };
-         let generated_arcs = generate_arcs(&compiled);
-         println!("Generated code for arcs:\n\n{}\n\n", &generated_arcs);
-         let generated_sfns = generate_sfns(&compiled);
-         println!("Generated code for sfns:\n\n{}\n\n", &generated_sfns);
+         let generated_arcs = generate_arcs(&compiled).to_string();
+         println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
+         assert!("let ( sf_0_out , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;" == generated_arcs);
+
+         let generated_sfns = generate_sfns(&compiled).to_string();
+         println!("Generated code for sfns:\n{}\n", &(generated_sfns.replace(";", ";\n")));
+         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { let r = some_sfn ( ) ; sf_0_out . send ( r ) . unwrap ( ) ; } ) ; tasks . push ( || { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; sf_1_out . send ( r ) . unwrap ( ) ; } ) ;" == generated_sfns);
      }
  }
