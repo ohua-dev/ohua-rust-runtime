@@ -3,7 +3,7 @@
 //! This program generates a rust runtime from an [Ohua](https://github.com/ohua-dev) algorithm, which can be defined in an `ohuac` file.
 //!
 //! TODO: Expand me! (Issue: [#15](https://github.com/ohua-dev/ohua-rust-runtime/issues/15))
-#![feature(proc_macro)]
+#![allow(dead_code, unused_imports)]
 
 extern crate serde;
 #[macro_use] extern crate serde_derive;
@@ -27,45 +27,52 @@ use codegen::typedgen::*;
 // #[export_macro]
 #[proc_macro_attribute]
 // #[proc_macro]
-pub fn ohua(args: TokenStream, input:TokenStream) -> TokenStream {
-    println!("args: {}", &args.to_string());
-    println!("input: {}", &input.to_string());
-    let final_code = quote! {
-        // nothing yet
-    };
-    final_code.into()
-    // // Parse the input tokens into a syntax tree
-    // let algoCall: ExprCall = syn::parse(input).unwrap();
-    // let algoName: Ident = algoCall.method;
-    // let args: Punctuated<Expr, Token![,]> = algoCall.args; // https://docs.serde.rs/syn/punctuated/index.html
-    //
-    //
-    // // perform code generation right here
-    // // TODO Felix: - locate and load the algo file
-    // //             - run the ohua-core compiler to generate the output (catch it as a string)
-    // //             - create the OhuaData structure from the compiler output
-    // let compiled_ohua = unimplemented!();
-    // // let stream = TokenStream::new();
-    // // let tokens: Result<TokenStream, LexError> = stream.from_str(&code);
-    //
-    // // TODO relocated the overall structure into a quote
-    // // let header_code = unimplemented!();
-    // let arc_code = generate_arcs(compiled_ohua);
-    // let op_code = generate_sfns(compiled_ohua); // Vec<String>
-    // let final_code = quote!{
-    //     // FIXME we can not have header code. all functions/identifiers need to be fully qualified.
-    //     // #header_code
-    //     {
-    //         #arc_code
-    //
-    //         #op_code
-    //
-    //         run_ohua(tasks)
-    //     }
+pub fn ohua(_args: TokenStream, input: TokenStream) -> TokenStream {
+    // println!("args: {}", &args.to_string());
+    // println!("input: {}", &input.to_string());
+    // let final_code = quote! {
+    //     // nothing yet
     // };
-    //
-    // // Hand the output tokens back to the compiler
     // final_code.into()
+    // Parse the input tokens into a syntax tree
+    let ast: Expr = syn::parse(input).unwrap();
+
+    let algo_call: ExprCall = if let Expr::Call(fn_call) = ast {
+        fn_call
+    } else {
+        panic!("The #[ohua] may only be applied to a function call.");
+    };
+
+    let algo_name: Box<Expr> = algo_call.func;
+    let args: Punctuated<Expr, Token![,]> = algo_call.args; // https://docs.serde.rs/syn/punctuated/index.html
+
+
+    // perform code generation right here
+    // TODO Felix: - locate and load the algo file
+    //             - run the ohua-core compiler to generate the output (catch it as a string)
+    //             - create the OhuaData structure from the compiler output
+    let compiled_ohua = unimplemented!();
+    // let stream = TokenStream::new();
+    // let tokens: Result<TokenStream, LexError> = stream.from_str(&code);
+
+    // TODO relocated the overall structure into a quote
+    // let header_code = unimplemented!();
+    let arc_code = generate_arcs(compiled_ohua);
+    let op_code = generate_sfns(compiled_ohua); // Vec<String>
+    let final_code = quote!{
+        // FIXME we can not have header code. all functions/identifiers need to be fully qualified.
+        // #header_code
+        {
+            #arc_code
+
+            #op_code
+
+            run_ohua(tasks)
+        }
+    };
+
+    // Hand the output tokens back to the compiler
+    final_code.into()
 }
 
 
