@@ -116,7 +116,10 @@ fn find_module(
             lookup_path.remove(0);
             PathBuf::from(ohuac_path.parent().expect("Encountered malformed path!"))
         }
-        "super" => PathBuf::from(ohuac_path.parent().expect("Encountered malformed path!")),
+        "super" => {
+            // FIXME: Doesn't this need to remove the first element as well?
+            PathBuf::from(ohuac_path.parent().expect("Encountered malformed path!"))
+        },
         _ => {
             let mut p = current_dir()?;
             p.push("src");
