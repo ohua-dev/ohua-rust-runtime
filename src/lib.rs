@@ -111,8 +111,8 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
 
     // TODO relocated the overall structure into a quote
     // let header_code = unimplemented!();
-    let arc_code = generate_arcs(&ohua_data);
-    let op_code = generate_sfns(&ohua_data); // Vec<String>
+    let arc_code: proc_macro2::TokenStream = syn::parse_str(&generate_arcs(&ohua_data)).unwrap();
+    let op_code: proc_macro2::TokenStream = syn::parse_str(&generate_sfns(&ohua_data)).unwrap(); // Vec<String>
     let final_code = quote!{
         // FIXME we can not have header code. all functions/identifiers need to be fully qualified.
         // #header_code
