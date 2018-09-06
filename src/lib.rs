@@ -21,6 +21,9 @@ use syn::punctuated::Punctuated;
 
 use codegen::typedgen::*;
 
+/*
+ * #[ohua] algo(arg1, arg2);
+ */
 // #[export_macro]
 #[proc_macro_attribute]
 // #[proc_macro]
