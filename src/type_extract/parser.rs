@@ -257,7 +257,7 @@ fn resolve_use_stmt(item_use: &syn::UseTree, current_state: Option<LookupInfo>) 
             // store the type info and stop recursion
             if use_name.ident.to_string() != "self" {
                 info.original_name = use_name.ident.to_string();
-                info.import_path += use_name.ident.as_ref();
+                // FIXME info.import_path += use_name.ident.as_ref();
             } else {
                 info.original_name = info.import_path.split("::").last().unwrap().to_string();
             }
@@ -267,7 +267,7 @@ fn resolve_use_stmt(item_use: &syn::UseTree, current_state: Option<LookupInfo>) 
             // store the type and renaming information and stop recursion
             info.outside_name = Some(use_rename.rename.to_string());
             info.original_name = use_rename.ident.to_string();
-            info.import_path += use_rename.ident.as_ref();
+            // FIXME info.import_path += use_rename.ident.as_ref();
             table.insert(info.outside_name.clone().unwrap(), info);
         }
         syn::UseTree::Glob(_) => {

@@ -96,7 +96,7 @@ fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> String {
     r
 }
 
-pub fn generate_arcs(compiled: OhuaData) -> String {
+pub fn generate_arcs(compiled: &OhuaData) -> String {
     // templates for arcs and stateful functions
     let arc_template = |source, target, target_idx| {
         format!(
@@ -124,7 +124,7 @@ pub fn generate_arcs(compiled: OhuaData) -> String {
 }
 
 // TODO extend to allow ops to have multiple outputs/outgoing arcs
-pub fn generate_sfns(compiled: OhuaData) -> String {
+pub fn generate_sfns(compiled: &OhuaData) -> String {
     let sf_template = |in_arcs, out_arc, sfn| {
         format!("tasks.push(run_sf!({}, {}, {}));\n", in_arcs, out_arc, sfn)
     };
@@ -240,9 +240,9 @@ pub fn generate_sfns(compiled: OhuaData) -> String {
              mainArity: 1,
              sfDependencies: Vec::new(),
          };
-         let generated_arcs = generate_arcs(compiled);
+         let generated_arcs = generate_arcs(&compiled);
          println!("Generated code for arcs:\n\n{}\n\n", &generated_arcs);
-         let generated_sfns = generate_sfns(compiled);
+         let generated_sfns = generate_sfns(&compiled);
          println!("Generated code for sfns:\n\n{}\n\n", &generated_sfns);
      }
  }
