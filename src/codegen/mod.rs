@@ -2,7 +2,7 @@
 //!
 //! This program generates a rust runtime for an [Ohua](https://github.com/ohua-dev) algorithm, which can be defined in an `ohuac` file.
 
-mod wrappers;
+pub mod wrappers;
 mod runtime_data;
 mod modgen;
 mod operators;

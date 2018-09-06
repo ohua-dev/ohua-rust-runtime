@@ -2,6 +2,8 @@
 
 extern crate ohua_rust_runtime;
 
+mod addition;
+
 use ohua_rust_runtime::ohua;
 
 pub fn main() {

@@ -101,7 +101,7 @@ fn generate_sfn_wrapper(name: &str, incoming_arcs: usize, output: Output, op_id:
 /// Function that analyzes the DFG provided by the user. Generates set containing all namespaces.
 ///
 /// The hashset of namespaces is used to generate the correct imports to have all functions in scope.
-fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
+pub fn analyze_namespaces(ohuadata: &OhuaData) -> HashSet<String> {
     let mut namespaces = HashSet::new();
 
     // for each operator in the DFG, check the arcs and count the number of incoming and outgoing arcs
