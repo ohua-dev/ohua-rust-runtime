@@ -1,0 +1,9 @@
+ns some_ns;
+
+use sf addition (add);
+
+fn main(a: u32) -> u32 {
+    let result = add(a);
+
+    result
+}

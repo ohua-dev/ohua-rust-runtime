@@ -4,6 +4,4 @@ version = "0.1.0"
 authors = ["Sebastian Ertel <sebastian.ertel@gmail.com>"]
 
 [dependencies]
-
-[build-dependencies]
 ohua_rust_runtime = { path = "../../" }

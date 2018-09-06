@@ -1,10 +1,14 @@
-#![feature (proc_macro_expr)]
+#![feature(proc_macro_expr)]
 
 extern crate ohua_rust_runtime;
 
+use ohua_rust_runtime::ohua;
 
 pub fn main() {
-    #[ohua] some_algo(param1);
+    let param = 12;
+
+    #[ohua]
+    foobar(param);
 }
 
 // #[cfg(test)]
