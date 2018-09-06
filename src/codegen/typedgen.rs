@@ -100,7 +100,7 @@ pub fn generate_arcs(compiled: &OhuaData) -> String {
     // templates for arcs and stateful functions
     let arc_template = |source, target, target_idx| {
         format!(
-            "let (sf_{}_out, sf_{}_in_{}) = mpsc::channel();\n",
+            "let (sf_{}_out, sf_{}_in_{}) = std::sync::mpsc::channel();\n",
             source, target, target_idx
         )
     };
