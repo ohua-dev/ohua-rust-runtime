@@ -1,4 +1,4 @@
-#![allow(unused_macros, dead_code, unused_doc_comments)]
+#![allow(unused_doc_comments)]
 use std::sync::mpsc::{Receiver,Sender};
 
 use ohua_types::Arc;
@@ -6,28 +6,6 @@ use ohua_types::OhuaData;
 use ohua_types::ValueType;
 
 use proc_macro2::{Ident,Span,TokenStream};
-
-/**
- Example operator: collect
- */
-
-// a fully explicit operator version
-fn collect<T>(n: Receiver<i32>, data: Receiver<T>, out: Sender<Vec<T>>) -> () {
-    loop {
-        match n.recv() {
-            Err(_) => {
-                // channels are closed by Rust itself
-            }
-            Ok(num) => {
-                let mut buffered = Vec::new();
-                for _x in 0..num {
-                    buffered.push(data.recv().unwrap());
-                }
-                out.send(buffered).unwrap();
-            }
-        }
-    }
-}
 
 fn get_op_id(val: &ValueType) -> &i32 {
     match val {
@@ -75,6 +53,7 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
         let sf = Ident::new(&op.operatorType.func, Span::call_site());
         // TODO turn this into a loop and exit when an error on the input channel occurs
         // TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
+        // TODO implement control information
         quote!{
             let r = #sf( #(#in_arcs.recv().unwrap()),* );
             #out_arc.send(r).unwrap();
