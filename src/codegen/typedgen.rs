@@ -1,9 +1,8 @@
 #![allow(unused_doc_comments)]
 use std::sync::mpsc::{Receiver,Sender};
 
-use ohua_types::Arc;
-use ohua_types::OhuaData;
-use ohua_types::ValueType;
+use ohua_types::{Arc, OhuaData, ValueType, OpType, Operator};
+use ohua_types::ValueType::{EnvironmentVal, LocalVal};
 
 use proc_macro2::{Ident,Span,TokenStream};
 
@@ -20,8 +19,24 @@ fn get_num_inputs(op: &i32, arcs: &Vec<Arc>) -> usize {
         .count()
 }
 
+fn get_num_outputs(op: &i32, arcs: &Vec<Arc>) -> usize {
+    arcs.iter()
+        .filter(|arc| { match &(arc.source.val) {
+            EnvironmentVal(i) => unimplemented!(),
+            LocalVal(a_id) => &(a_id.operator) == op,
+        }})
+        .count()
+}
+
 fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
     let n = get_num_inputs(&op, &arcs);
+    (0..n).map(|i| { Ident::new(&format!("sf_{}_in_{}", op.to_string(), i.to_string()),
+                                Span::call_site()) }).collect()
+}
+
+fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
+    let n = get_num_outputs(&op, &arcs);
+    // FIXME to pass them as normal arguments, we need an index!
     (0..n).map(|i| { Ident::new(&format!("sf_{}_in_{}", op.to_string(), i.to_string()),
                                 Span::call_site()) }).collect()
 }
@@ -41,19 +56,37 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
     }
 }
 
-// TODO
-pub fn generate_ops() -> () {
-    unimplemented!()
+pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
+    let ops = compiled.graph.operators.iter().filter(|o| (match o.operatorType.op_type {
+            OpType::OhuaOperator(_) => true,
+            _ => false,
+    }));
+    let op_codes : Vec<TokenStream> = ops.map(|op| {
+        let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+        let out_arcs = generate_out_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+        let op_name = Ident::new(&op.operatorType.func, Span::call_site());
+        quote!{
+            #op_name(#(#in_arcs),* #(,#out_arcs)*);
+        }
+    }).collect();
+
+    quote!{
+        #(tasks.push(|| { #op_codes }); )*
+    }
 }
 
 pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
-    let sf_codes : Vec<TokenStream> = compiled.graph.operators.iter().map(|op| {
+    let sfns = compiled.graph.operators.iter().filter(|&o| { match o.operatorType.op_type {
+            OpType::SfnWrapper => true,
+            _ => false,
+    }});
+    let sf_codes : Vec<TokenStream> = sfns.map(|op| {
         let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
         let out_arc = Ident::new(&format!("sf_{}_out", op.operatorId.to_string()), Span::call_site());
         let sf = Ident::new(&op.operatorType.func, Span::call_site());
         // TODO turn this into a loop and exit when an error on the input channel occurs
         // TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
-        // TODO implement control information
+        // TODO implement control information (control arcs have target index set to -1)
         quote!{
             let r = #sf( #(#in_arcs.recv().unwrap()),* );
             #out_arc.send(r).unwrap();
