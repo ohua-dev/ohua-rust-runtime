@@ -93,11 +93,15 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
             _ => false,
     }));
     let op_codes : Vec<TokenStream> = ops.map(|op| {
-        let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
-        let out_arcs = generate_out_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), &(compiled.graph.operators));
+        let mut in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+        let mut out_arcs = generate_out_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), &(compiled.graph.operators));
         let op_name = Ident::new(&op.operatorType.func, Span::call_site());
+        in_arcs.append(&mut out_arcs);
+
         quote!{
-            #op_name(#(#in_arcs),* #(,#out_arcs)*);
+            loop{
+                #op_name(#(&#in_arcs),*);
+            }
         }
     }).collect();
 
@@ -115,12 +119,13 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
         let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
         let out_arc = generate_var_for_out_arc(&op.operatorId, &-1, &(compiled.graph.operators));
         let sf = Ident::new(&op.operatorType.func, Span::call_site());
-        // TODO turn this into a loop and exit when an error on the input channel occurs
         // TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
         // TODO implement control information (control arcs have target index set to -1)
         quote!{
-            let r = #sf( #(#in_arcs.recv().unwrap()),* );
-            #out_arc.send(r).unwrap();
+            loop {
+                let r = #sf( #(#in_arcs.recv().unwrap()),* );
+                #out_arc.send(r).unwrap();
+            }
         }
     }).collect();
 
@@ -176,28 +181,17 @@ pub fn generate_code(compiled: &OhuaData) -> TokenStream {
          a + 5
      }
 
-     #[test]
-     fn full_code_gen_test() {
-         let compiled = OhuaData {
+     fn producer_consumer(prod: OperatorType, con: OperatorType, out_idx: i32) -> OhuaData {
+         OhuaData {
              graph: DFGraph {
                  operators: vec![
                      Operator {
                          operatorId: 0,
-                         operatorType: OperatorType {
-                             qbNamespace: Vec::new(),
-                             qbName: "none".to_string(),
-                             func: "some_sfn".to_string(),
-                             op_type: OpType::SfnWrapper,
-                         },
+                         operatorType: prod,
                      },
                      Operator {
                          operatorId: 1,
-                         operatorType: OperatorType {
-                             qbNamespace: Vec::new(),
-                             qbName: "none".to_string(),
-                             func: "some_other_sfn".to_string(),
-                             op_type: OpType::SfnWrapper,
-                         },
+                         operatorType: con,
                      },
                  ],
                  arcs: vec![Arc {
@@ -209,7 +203,7 @@ pub fn generate_code(compiled: &OhuaData) -> TokenStream {
                          s_type: "".to_string(),
                          val: ValueType::LocalVal(ArcIdentifier {
                              operator: 0,
-                             index: -1,
+                             index: out_idx,
                          }),
                      },
                  }],
@@ -221,13 +215,56 @@ pub fn generate_code(compiled: &OhuaData) -> TokenStream {
              },
              mainArity: 1,
              sfDependencies: Vec::new(),
-         };
+         }
+     }
+
+     #[test]
+     fn sf_code_gen() {
+         let compiled = producer_consumer(OperatorType {
+                                             qbNamespace: Vec::new(),
+                                             qbName: "none".to_string(),
+                                             func: "some_sfn".to_string(),
+                                             op_type: OpType::SfnWrapper,
+                                         },
+                                         OperatorType {
+                                             qbNamespace: Vec::new(),
+                                             qbName: "none".to_string(),
+                                             func: "some_other_sfn".to_string(),
+                                             op_type: OpType::SfnWrapper,
+                                         },
+                                        -1);
+
          let generated_arcs = generate_arcs(&compiled).to_string();
          println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
          assert!("let ( sf_0_out_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;" == generated_arcs);
 
          let generated_sfns = generate_sfns(&compiled).to_string();
          println!("Generated code for sfns:\n{}\n", &(generated_sfns.replace(";", ";\n")));
-         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { let r = some_sfn ( ) ; sf_0_out_0 . send ( r ) . unwrap ( ) ; } ) ; tasks . push ( || { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; sf_1_out_0 . send ( r ) . unwrap ( ) ; } ) ;" == generated_sfns);
+         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { let r = some_sfn ( ) ; sf_0_out_0 . send ( r ) . unwrap ( ) ; } } ) ; tasks . push ( || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; sf_1_out_0 . send ( r ) . unwrap ( ) ; } } ) ;" == generated_sfns);
+     }
+
+     #[test]
+     fn op_code_gen() {
+         let compiled = producer_consumer(OperatorType {
+                                             qbNamespace: Vec::new(),
+                                             qbName: "none".to_string(),
+                                             func: "some_op".to_string(),
+                                             op_type: OpType::OhuaOperator("whatever".to_string()),
+                                         },
+                                         OperatorType {
+                                             qbNamespace: Vec::new(),
+                                             qbName: "none".to_string(),
+                                             func: "some_other_op".to_string(),
+                                             op_type: OpType::OhuaOperator("whatever".to_string()),
+                                         },
+                                        0);
+
+         let generated_arcs = generate_arcs(&compiled).to_string();
+         println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
+         assert!("let ( sf_0_out_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;" == generated_arcs);
+
+         let generated_ops = generate_ops(&compiled).to_string();
+         println!("Generated code for ops:\n{}\n", &(generated_ops.replace(";", ";\n")));
+         assert!("tasks . push ( || { loop { some_op ( & sf_0_out_0 ) ; } } ) ; tasks . push ( || { loop { some_other_op ( & sf_1_in_0 ) ; } } ) ;" == generated_ops);
      }
  }
