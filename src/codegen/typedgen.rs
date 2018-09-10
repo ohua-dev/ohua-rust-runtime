@@ -55,7 +55,12 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> Ident {
 }
 
 fn generate_var_for_in_arc(op: &i32, idx: &i32) -> Ident {
-    Ident::new(&format!("sf_{}_in_{}", op.to_string(), idx.to_string()),
+    assert!(idx > &-2);
+    let index = match idx {
+                    -1 => "ctrl".to_string(),
+                    _ => idx.to_string(),
+                };
+    Ident::new(&format!("sf_{}_in_{}", op.to_string(), index),
                Span::call_site())
 }
 
@@ -67,7 +72,6 @@ fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
 
 fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<Ident> {
     let n = get_num_outputs(&op, &arcs);
-    // FIXME to pass them as normal arguments, we need an index!
     (0..n).map(|i| { generate_var_for_out_arc(op, &(i as i32), ops) }).collect()
 }
 
@@ -96,11 +100,19 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
         let mut in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
         let mut out_arcs = generate_out_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), &(compiled.graph.operators));
         let op_name = Ident::new(&op.operatorType.func, Span::call_site());
-        in_arcs.append(&mut out_arcs);
 
+        in_arcs.append(&mut out_arcs);
+        assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
+        
         quote!{
             loop{
+                // FIXME do we really have a valid design to handle control input for operators?
+                //       how do we drain the inputs if the op dequeues n packets from some input channel???
+                // if #ctrl.recv().unboxed() {
                 #op_name(#(&#in_arcs),*);
+                // } else {
+                //     // skip
+                // }
             }
         }
     }).collect();
@@ -108,6 +120,12 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
     quote!{
         #(tasks.push(|| { #op_codes }); )*
     }
+}
+
+fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
+    arcs.into_iter()
+        .find(|arc| { &(arc.target.operator) == op && arc.target.index == -1 } )
+        .map(|ctrl_arc| { generate_var_for_in_arc(&(ctrl_arc.target.operator), &(ctrl_arc.target.index)) } )
 }
 
 pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
@@ -120,11 +138,21 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
         let out_arc = generate_var_for_out_arc(&op.operatorId, &-1, &(compiled.graph.operators));
         let sf = Ident::new(&op.operatorType.func, Span::call_site());
         // TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
-        // TODO implement control information (control arcs have target index set to -1)
+        let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
+        let ctrl = match ctrl_port {
+                None => quote! {true},
+                Some(p) => quote!{#p.recv().unwrap()},
+            };
+        let arcs = in_arcs.clone(); // can't reuse var in quote!
         quote!{
             loop {
-                let r = #sf( #(#in_arcs.recv().unwrap()),* );
-                #out_arc.send(r).unwrap();
+                if #ctrl {
+                    let r = #sf( #(#in_arcs.recv().unwrap()),* );
+                    #out_arc.send(r).unwrap();
+                } else {
+                    // just drain and skip the call
+                    #(#arcs.recv().unwrap();)*
+                }
             }
         }
     }).collect();
@@ -240,7 +268,7 @@ pub fn generate_code(compiled: &OhuaData) -> TokenStream {
 
          let generated_sfns = generate_sfns(&compiled).to_string();
          println!("Generated code for sfns:\n{}\n", &(generated_sfns.replace(";", ";\n")));
-         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { let r = some_sfn ( ) ; sf_0_out_0 . send ( r ) . unwrap ( ) ; } } ) ; tasks . push ( || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; sf_1_out_0 . send ( r ) . unwrap ( ) ; } } ) ;" == generated_sfns);
+         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { if true { let r = some_sfn ( ) ; sf_0_out_0 . send ( r ) . unwrap ( ) ; } else { } } } ) ; tasks . push ( || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; sf_1_out_0 . send ( r ) . unwrap ( ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ;" == generated_sfns);
      }
 
      #[test]

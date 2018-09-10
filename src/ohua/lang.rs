@@ -29,7 +29,7 @@ pub fn select<T>(decision: Receiver<bool>,
 }
 
 // that's also a stateful function -> in fact this thing needs variadic arguments and therefore needs to be a macro
-// FIXME this probably wants to become a procedural macro! (not that proc macros can also have the form 'scope!()')
+// FIXME this probably wants to become a procedural macro! (note that proc macros can also have the form 'scope!()')
 macro_rules! scope {
     // FIXME this is not as trivial as it seems because we need different type parameters! and therefore need a recursive macro!
     ( $($input),+ ) => {
@@ -40,7 +40,14 @@ macro_rules! scope {
 }
 
 pub fn one_to_n<T>(n: Receiver<i32>, val: Receiver<T>, out: Sender<T>) -> () {
-    unimplemented!();
+    // TODO 2 more efficient implementations exist:
+    //      1. send the key and the value once -> requires special input ports that are sensitive to that.
+    //      2. send a batch -> requires input ports to understand the concept of a batch.
+    // feels like the second option is the more general one (but also creates more data).
+    let v = val.recv().unwrap();
+    for _ in 0..(n.recv().unwrap()) {
+        out.send(v).unwrap();
+    }
 }
 
 // that's actually a stateful function
