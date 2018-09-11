@@ -28,6 +28,22 @@ fn get_num_outputs(op: &i32, arcs: &Vec<Arc>) -> usize {
         .count()
 }
 
+fn get_outputs(op: &i32, arcs: &Vec<Arc>) -> Vec<i32> {
+    let mut t: Vec<i32> = arcs.iter()
+                              .filter(|arc| { match &(arc.source.val) {
+                                    EnvironmentVal(i) => unimplemented!(),
+                                    LocalVal(a_id) => &(a_id.operator) == op,
+                                }})
+                              .map(|arc| { match &(arc.source.val) {
+                                    EnvironmentVal(i) => unimplemented!(),
+                                    LocalVal(a_id) => a_id.index,
+                                }})
+                              .collect();
+    t.sort();
+    t
+}
+
+
 fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     match src.val {
         EnvironmentVal(ref i) => i,
@@ -71,8 +87,7 @@ fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
 }
 
 fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<Ident> {
-    let n = get_num_outputs(&op, &arcs);
-    (0..n).map(|i| { generate_var_for_out_arc(op, &(i as i32), ops) }).collect()
+    get_outputs(&op, &arcs).iter().map(|i| { generate_var_for_out_arc(op, i, ops) }).collect()
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
@@ -103,7 +118,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
 
         in_arcs.append(&mut out_arcs);
         assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
-        
+
         quote!{
             loop{
                 // FIXME do we really have a valid design to handle control input for operators?
@@ -128,6 +143,19 @@ fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
         .map(|ctrl_arc| { generate_var_for_in_arc(&(ctrl_arc.target.operator), &(ctrl_arc.target.index)) } )
 }
 
+fn send<T: Copy>(val: T, outputs: Vec<&Sender<T>>) -> () {
+    // option 1: we could borrow here and then it would fail if somebody tries to write to val. (pass-by-ref)
+    // option 2: clone (pass-by-val)
+    // this is something that our knowledge base could be useful for: check if any of the predecessor.
+    // requires a mutable reference. if so then we need a clone for this predecessor.
+    // borrowing across channels does not seem to work. how do I make a ref read-only in Rust? is this possible at all?
+    match outputs.len() {
+            0 => (), // drop
+            1 => outputs[0].send(val).unwrap(),
+            _ => for output in outputs { output.send(val.clone()).unwrap(); },
+    };
+}
+
 pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
     let sfns = compiled.graph.operators.iter().filter(|&o| { match o.operatorType.op_type {
             OpType::SfnWrapper => true,
@@ -135,9 +163,8 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
     }});
     let sf_codes : Vec<TokenStream> = sfns.map(|op| {
         let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
-        let out_arc = generate_var_for_out_arc(&op.operatorId, &-1, &(compiled.graph.operators));
+        let out_arcs = generate_out_arcs_vec(&op.operatorId, &(compiled.graph.arcs), &(compiled.graph.operators));
         let sf = Ident::new(&op.operatorType.func, Span::call_site());
-        // TODO use a vector of outputs (create a normal output function because all the type related stuff happens until the sf was executed)
         let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
         let ctrl = match ctrl_port {
                 None => quote! {true},
@@ -148,7 +175,7 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
             loop {
                 if #ctrl {
                     let r = #sf( #(#in_arcs.recv().unwrap()),* );
-                    #out_arc.send(r).unwrap();
+                    send(r, vec![#(&#out_arcs),*]); // TODO check if it is ok, to use this macro inside procedural macro! otherwise just do: let v = Vec::new(); #(v.push(#out_arcs);)* send(r, &v);
                 } else {
                     // just drain and skip the call
                     #(#arcs.recv().unwrap();)*
@@ -204,10 +231,6 @@ pub fn generate_code(compiled: &OhuaData) -> TokenStream {
      use ohua_types::OpType;
      use ohua_types::ArcIdentifier;
      use ohua_types::DFGraph;
-
-     fn my_simple_sf(a:i32) -> i32 {
-         a + 5
-     }
 
      fn producer_consumer(prod: OperatorType, con: OperatorType, out_idx: i32) -> OhuaData {
          OhuaData {
@@ -268,7 +291,7 @@ pub fn generate_code(compiled: &OhuaData) -> TokenStream {
 
          let generated_sfns = generate_sfns(&compiled).to_string();
          println!("Generated code for sfns:\n{}\n", &(generated_sfns.replace(";", ";\n")));
-         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { if true { let r = some_sfn ( ) ; sf_0_out_0 . send ( r ) . unwrap ( ) ; } else { } } } ) ; tasks . push ( || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; sf_1_out_0 . send ( r ) . unwrap ( ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ;" == generated_sfns);
+         assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { if true { let r = some_sfn ( ) ; send ( r , vec ! [ & sf_0_out_0 ] ) ; } else { } } } ) ; tasks . push ( || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; send ( r , vec ! [ ] ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ;" == generated_sfns);
      }
 
      #[test]

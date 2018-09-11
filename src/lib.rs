@@ -61,7 +61,7 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     let algo_call: ExprCall = if let Expr::Call(fn_call) = expression {
         fn_call
     } else {
-        panic!("The #[ohua] may only be applied to a function call.");
+        panic!("The #[ohua] macro may only be applied to a function call.");
     };
 
     if !args.is_empty() {
