@@ -7,10 +7,7 @@ mod addition;
 use ohua_rust_runtime::ohua;
 
 pub fn main() {
-    let param = 12;
-
-    #[ohua]
-    foobar(param);
+    #[ohua] foobar();
 }
 
 // #[cfg(test)]
