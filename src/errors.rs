@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::io;
-use syn::synom::ParseError;
+use syn::parse::Error as ParseError;
 
 #[derive(Debug)]
 pub enum CodeGenerationError {

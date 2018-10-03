@@ -90,27 +90,32 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
      */
 
     // Phase 1: Run `ohuac` (there are no optimizations for the moment)
+    println!("[Phase 1] Starting `ohuac`");
     let ohuac_file = locate_ohuac_file(algo_name)
         .expect("The ohuac file could not be found at the requested place.");
     let processed_algo = ohuac::generate_dfg(ohuac_file, tmp_dir.clone());
 
     // Phase 2: Run the type extraction
-    let type_infos = match TypeKnowledgeBase::generate_from(&processed_algo) {
-        Ok(info) => info,
-        Err(e) => panic!("{}", e),
-    };
+    // println!("[Phase 2] Running type extraction");
+    // let type_infos = match TypeKnowledgeBase::generate_from(&processed_algo) {
+    //     Ok(info) => info,
+    //     Err(e) => panic!("{}", e),
+    // };
 
     // Phase 3: Run `ohuac` w/ optimizations (unimplemented as of now)
     // TODO
 
     // Phase 4: Run the codegen
+    print!("[Phase 4] Generating Code...");
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
     let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
 
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
     let final_code = generate_code(&ohua_data);
-    println!("{}", final_code);
-    // Hand the output tokens back to the compiler
+    println!(" Done!");
+
+    println!("{}", final_code.clone().to_string());
+    // Hand the output tokens back to the compil)er
     final_code.into() // this converts from proc_macro2::TokenStream to proc_macro::TokenStream
 }
 

@@ -27,7 +27,7 @@ before_install:
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 - git clone https://github.com/ohua-dev/ohuac.git ~/ohuac
 - cd ~/ohuac
-- git checkout 97eddb9a7f7e7bc4a878f80806527eff356fe5c9
+- git checkout c3b32efc165b92eeec607f83c53af735707ee139
 - stack --no-terminal install
 - cd -
 - cargo install sccache
@@ -37,26 +37,26 @@ before_install:
 script:
   - cargo build --verbose
   - cargo test
-  - cd testcases/simple_addition/
-  - cargo run
-  - cd ../../; cd testcases/argument_clone/
-  - cargo run
-  - cd ../../; cd testcases/mainarg_clone/
-  - cargo run
-  - cd ../../; cd testcases/string_manipulation/
-  - cargo run
-  - cd ../../; cd testcases/tuple_values/
-  - cargo run
-  - cd ../../; cd testcases/double_use/
-  - cargo run
-  - cd ../../; cd testcases/correct_sender_placement
-  - cargo run
-  - cd ../../; cd testcases/unused_arguments
-  - cargo run
-  - cd ../../; cd testcases/custom_types/
-  - cargo run
-  - cd ../../; cd testcases/tuple_return/
-  - cargo run
-  - cd ../../; cd testcases/tuple_operator/
-  - cargo run
+  - cd testcases/ohua_macro/
+  - cargo run -- --nocapture
+  # - cd ../../; cd testcases/argument_clone/
+  # - cargo run
+  # - cd ../../; cd testcases/mainarg_clone/
+  # - cargo run
+  # - cd ../../; cd testcases/string_manipulation/
+  # - cargo run
+  # - cd ../../; cd testcases/tuple_values/
+  # - cargo run
+  # - cd ../../; cd testcases/double_use/
+  # - cargo run
+  # - cd ../../; cd testcases/correct_sender_placement
+  # - cargo run
+  # - cd ../../; cd testcases/unused_arguments
+  # - cargo run
+  # - cd ../../; cd testcases/custom_types/
+  # - cargo run
+  # - cd ../../; cd testcases/tuple_return/
+  # - cargo run
+  # - cd ../../; cd testcases/tuple_operator/
+  # - cargo run
   - cd ../../
