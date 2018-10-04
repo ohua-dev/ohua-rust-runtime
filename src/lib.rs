@@ -23,6 +23,7 @@ mod errors;
 mod ohua_types;
 mod ohuac;
 mod type_extract;
+mod runtime;
 
 use codegen::generate_ohua_runtime;
 use codegen::typedgen::*;
@@ -109,6 +110,7 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     print!("[Phase 4] Generating Code...");
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
     let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
+    println!("{}", &ohua_data);
 
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
     let final_code = generate_code(&ohua_data);

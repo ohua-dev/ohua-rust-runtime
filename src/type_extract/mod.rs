@@ -32,6 +32,7 @@ pub struct TypeKnowledgeBase {
 
 impl TypeKnowledgeBase {
     pub fn generate_from(algo_info: &OhuaProduction) -> Result<Self, TypeExtractionError> {
+        println!("{}", algo_info.ohuao.to_str().unwrap());
         // read the files generated beforehand
         let algo_file = File::open(algo_info.ohuao.as_path())?;
         let mut algo_spec: OhuaData = serde_json::from_reader(algo_file).unwrap();
