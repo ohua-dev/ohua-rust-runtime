@@ -1,4 +1,4 @@
-pub fn gen_string(_: i32) -> String {
+pub fn gen_string() -> String {
     String::from("Hello")
 }
 

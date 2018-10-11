@@ -1,8 +1,0 @@
-ns some_ns;
-
-use sf strings (gen_string, count_strings);
-
-fn main(initial: i32) -> i32 {
-    let res = gen_string(initial);
-    count_strings(res, res)
-}

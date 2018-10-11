@@ -24,7 +24,8 @@ fn get_num_outputs(op: &i32, arcs: &Vec<Arc>) -> usize {
         .filter(|arc| match &(arc.source.val) {
             EnvironmentVal(i) => unimplemented!(),
             LocalVal(a_id) => &(a_id.operator) == op,
-        }).count()
+        })
+        .count()
 }
 
 fn get_outputs(op: &i32, arcs: &Vec<Arc>) -> Vec<i32> {
@@ -33,10 +34,12 @@ fn get_outputs(op: &i32, arcs: &Vec<Arc>) -> Vec<i32> {
         .filter(|arc| match &(arc.source.val) {
             EnvironmentVal(i) => unimplemented!(),
             LocalVal(a_id) => &(a_id.operator) == op,
-        }).map(|arc| match &(arc.source.val) {
+        })
+        .map(|arc| match &(arc.source.val) {
             EnvironmentVal(i) => unimplemented!(),
             LocalVal(a_id) => a_id.index,
-        }).collect();
+        })
+        .collect();
     t.sort();
     t
 }
@@ -49,10 +52,14 @@ fn get_out_index_from_source(src: &ArcSource) -> &i32 {
 }
 
 fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> Ident {
-    let op_spec = ops.iter()
-                     .find(|o| &(o.operatorId) == op)
-                     // FIXME This may fail for environment variables.
-                     .expect(&format!("Ohua compiler invariant broken: Operator not registered: {}", op));
+    let op_spec = ops
+        .iter()
+        .find(|o| &(o.operatorId) == op)
+        // FIXME This may fail for environment variables.
+        .expect(&format!(
+            "Ohua compiler invariant broken: Operator not registered: {}",
+            op
+        ));
     let computed_idx = match &(op_spec.operatorType.op_type) {
         OpType::SfnWrapper => {
             assert!(idx == &-1);
@@ -131,26 +138,32 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
             _ => false,
         })
     });
-    let op_codes : Vec<TokenStream> = ops.map(|op| {
-        let mut in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
-        let mut out_arcs = generate_out_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), &(compiled.graph.operators));
-        let op_name = get_call_reference(&op.operatorType);
+    let op_codes: Vec<TokenStream> = ops
+        .map(|op| {
+            let mut in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+            let mut out_arcs = generate_out_arcs_vec(
+                &(op.operatorId),
+                &(compiled.graph.arcs),
+                &(compiled.graph.operators),
+            );
+            let op_name = get_call_reference(&op.operatorType);
 
-        in_arcs.append(&mut out_arcs);
-        assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
+            in_arcs.append(&mut out_arcs);
+            assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
 
-        quote!{
-            loop{
-                // FIXME do we really have a valid design to handle control input for operators?
-                //       how do we drain the inputs if the op dequeues n packets from some input channel???
-                // if #ctrl.recv().unboxed() {
-                #op_name(#(&#in_arcs),*);
-                // } else {
-                //     // skip
-                // }
+            quote!{
+                loop{
+                    // FIXME do we really have a valid design to handle control input for operators?
+                    //       how do we drain the inputs if the op dequeues n packets from some input channel???
+                    // if #ctrl.recv().unboxed() {
+                    #op_name(#(&#in_arcs),*);
+                    // } else {
+                    //     // skip
+                    // }
+                }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     quote!{
         #(tasks.push(|| { #op_codes }); )*
@@ -174,28 +187,38 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
             OpType::SfnWrapper => true,
             _ => false,
         });
-    let sf_codes : Vec<TokenStream> = sfns.map(|op| {
-        let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
-        let out_arcs = generate_out_arcs_vec(&op.operatorId, &(compiled.graph.arcs), &(compiled.graph.operators));
-        let sf = get_call_reference(&op.operatorType);
-        let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
-        let ctrl = match ctrl_port {
+    let sf_codes: Vec<TokenStream> = sfns
+        .map(|op| {
+            let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+            let out_arcs = generate_out_arcs_vec(
+                &op.operatorId,
+                &(compiled.graph.arcs),
+                &(compiled.graph.operators),
+            );
+            let sf = get_call_reference(&op.operatorType);
+            let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
+            let ctrl = match ctrl_port {
                 None => quote! {true},
                 Some(p) => quote!{#p.recv().unwrap()},
             };
-        let arcs = in_arcs.clone(); // can't reuse var in quote!
-        quote!{
-            loop {
-                if #ctrl {
-                    let r = #sf( #(#in_arcs.recv().unwrap()),* );
-                    send(r, vec![#(&#out_arcs),*]); // TODO check if it is ok, to use this macro inside procedural macro! otherwise just do: let v = Vec::new(); #(v.push(#out_arcs);)* send(r, &v);
-                } else {
-                    // just drain and skip the call
-                    #(#arcs.recv().unwrap();)*
+            let arcs = in_arcs.clone(); // can't reuse var in quote!
+            let r = Ident::new(&"r", Span::call_site());
+            let send = generate_send(&r, &out_arcs);
+            quote!{
+                loop {
+                    if #ctrl {
+                        let #r = #sf( #(#in_arcs.recv().unwrap()),* );
+                        #send
+                        //#send(r, vec![#(&#out_arcs),*]);
+                        // TODO check if it is ok, to use this macro inside procedural macro! otherwise just do: let v = Vec::new(); #(v.push(#out_arcs);)* send(r, &v);
+                    } else {
+                        // just drain and skip the call
+                        #(#arcs.recv().unwrap();)*
+                    }
                 }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     quote!{
         let mut tasks: Vec<Box<Fn() -> () + Send + 'static>> = Vec::new();
@@ -203,36 +226,61 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
     }
 }
 
-fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
-    operators.iter()
-             .map(|op| &op.operatorType )
-             .map(|op| {
-                  let mut r = op.qbNamespace.to_vec();
-                  r.push(op.qbName.to_string());
-                  // let ns = r.join("::");
-                  // let ns_id = Ident::new(&ns, Span::call_site());
-                  // splicing this in gives me the following error:
-                  // "ns1::some_sfn" is not a valid Ident
-                  // in order to do that properly, I would need to create a UseTree:
-                  // https://docs.rs/syn/0.15/syn/enum.UseTree.html
-                  // where each element is again an Ident.
-                  // I think this is is easier:
-                  let initial_val = Ident::new(&r[0], Span::call_site());
-                  let ns_id = r.iter()
-                               .skip(1) // used as initial state for folding (assertion: must have at least one element!)
-                               .fold(quote!{ #initial_val },
-                                     |state, curr| {
-                                          let n = Ident::new(&curr, Span::call_site());
-                                          quote!{
-                                              #state::#n
-                                          }
-                                      });
+fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
+    // option 1: we could borrow here and then it would fail if somebody tries to write to val. (pass-by-ref)
+    // option 2: clone (pass-by-val)
+    // this is something that our knowledge base could be useful for: check if any of the predecessor.
+    // requires a mutable reference. if so then we need a clone for this predecessor.
+    // borrowing across channels does not seem to work. how do I make a ref read-only in Rust? is this possible at all?
+    match outputs.len() {
+        0 => quote!{}, // drop
+        1 => {
+            let o = &outputs[0];
+            quote!{#o.send(#r).unwrap()}
+        }
+        _ => {
+            let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
+            quote!{
+                #(#outputs.send(#results.clone()).unwrap());*
+                // for output in [#(#outputs),*].iter() {
+                //     output.send(#r.clone()).unwrap();
+                // }
+            }
+        }
+    }
+}
 
-                  quote!{
-                      use #ns_id;
-                  }
-             })
-             .collect()
+fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
+    operators
+        .iter()
+        .map(|op| &op.operatorType)
+        .map(|op| {
+            let mut r = op.qbNamespace.to_vec();
+            r.push(op.qbName.to_string());
+            // let ns = r.join("::");
+            // let ns_id = Ident::new(&ns, Span::call_site());
+            // splicing this in gives me the following error:
+            // "ns1::some_sfn" is not a valid Ident
+            // in order to do that properly, I would need to create a UseTree:
+            // https://docs.rs/syn/0.15/syn/enum.UseTree.html
+            // where each element is again an Ident.
+            // I think this is is easier:
+            let initial_val = Ident::new(&r[0], Span::call_site());
+            let ns_id = r
+                .iter()
+                .skip(1) // used as initial state for folding (assertion: must have at least one element!)
+                .fold(quote!{ #initial_val }, |state, curr| {
+                    let n = Ident::new(&curr, Span::call_site());
+                    quote!{
+                        #state::#n
+                    }
+                });
+
+            quote!{
+                use #ns_id;
+            }
+        })
+        .collect()
 }
 
 fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
@@ -240,7 +288,7 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
 
     quote!{
         use std::sync::mpsc::{Receiver, Sender};
-        use ohua_runtime::{run_ohua, send};
+        use ohua_runtime::run_ohua;
 
         #(#app_namespaces)*
     }
