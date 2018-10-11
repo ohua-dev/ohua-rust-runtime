@@ -183,7 +183,7 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
 
     quote!{
         let mut tasks: Vec<Box<Fn() -> () + Send + 'static>> = Vec::new();
-        #(tasks.push(Box::new(|| { #sf_codes })); )*
+        #(tasks.push(Box::new(move || { #sf_codes })); )*
     }
 }
 
