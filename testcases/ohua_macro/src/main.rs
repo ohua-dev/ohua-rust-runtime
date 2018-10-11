@@ -1,4 +1,4 @@
-#![feature(proc_macro_expr)]
+#![feature(proc_macro_hygiene)]
 
 extern crate ohua_rust_runtime;
 
