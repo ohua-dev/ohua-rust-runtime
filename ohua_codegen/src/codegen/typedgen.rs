@@ -44,6 +44,17 @@ fn get_outputs(op: &i32, arcs: &Vec<Arc>) -> Vec<i32> {
     t
 }
 
+fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
+    let t = arcs
+        .iter()
+        .filter(|arc| match &(arc.source.val) {
+            EnvironmentVal(i) => unimplemented!(),
+            LocalVal(a_id) => &(a_id.operator) == op,
+        })
+        .collect();
+    t
+}
+
 fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     match src.val {
         EnvironmentVal(ref i) => i,
@@ -51,7 +62,7 @@ fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     }
 }
 
-fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> Ident {
+fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> String {
     let op_spec = ops
         .iter()
         .find(|o| &(o.operatorId) == op)
@@ -70,8 +81,30 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> Ident {
             idx
         }
     };
+
+    format!("sf_{}_out_{}", op.to_string(), computed_idx.to_string())
+}
+
+fn generate_out_arc_var(arc: &Arc, ops: &Vec<Operator>) -> Ident {
+    let out_idx = get_out_index_from_source(&(arc.source));
+    let src_op = get_op_id(&(arc.source.val));
+    let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
+
+    let in_port = generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index));
+
+    /**
+    This enforces the following invariant in Ohua/dataflow:
+    An input port can only have one incoming arc. So it is enough to use the op-id and the input-port-id
+    to generate a unique variable name.
+    However, it is possible for one output port to have more than one outgoing arc.
+    As such, using the only the op-id in combination with the output-port-id will not work because
+    there are multiple arcs with the same source and has the variable name would be generated
+    multiple times.
+    We simply make this name unique again by the fact that each arc is unique and an arc is uniquely
+    identified by its source op/output-port and the target op/input-port.
+     */
     Ident::new(
-        &format!("sf_{}_out_{}", op.to_string(), computed_idx.to_string()),
+        &format!("{}__{}", out_port.to_string(), in_port.to_string()),
         Span::call_site(),
     )
 }
@@ -97,26 +130,18 @@ fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
 }
 
 fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<Ident> {
-    get_outputs(&op, &arcs)
+    get_out_arcs(&op, &arcs)
         .iter()
-        .map(|i| generate_var_for_out_arc(op, i, ops))
+        .map(|arc| generate_out_arc_var(arc, ops))
         .collect()
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
     let outs = compiled.graph.arcs.iter().map(|arc| {
-        let op = get_op_id(&(arc.source.val));
-        generate_var_for_out_arc(
-            &op,
-            get_out_index_from_source(&arc.source),
-            &(compiled.graph.operators),
-        )
+        generate_out_arc_var(&arc, &(compiled.graph.operators))
     });
-    let ins = compiled
-        .graph
-        .arcs
-        .iter()
-        .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
+    let ins = compiled.graph.arcs.iter()
+                                 .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
 
     quote!{
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
@@ -236,7 +261,7 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
         0 => quote!{}, // drop
         1 => {
             let o = &outputs[0];
-            quote!{#o.send(#r).unwrap()}
+            quote!{ #o.send(#r).unwrap(); }
         }
         _ => {
             let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
@@ -388,12 +413,12 @@ mod tests {
             "\nGenerated code for imports:\n{}\n",
             &(generated_imports.replace(";", ";\n"))
         );
-        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use ohua_runtime :: { run_ohua , send } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use ohua_runtime :: run_ohua ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
         assert!(
-            "let ( sf_0_out_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;"
+            "let ( sf_0_out_0__sf_1_in_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;"
                 == generated_arcs
         );
 
@@ -402,7 +427,7 @@ mod tests {
             "Generated code for sfns:\n{}\n",
             &(generated_sfns.replace(";", ";\n"))
         );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_sfn ( ) ; send ( r , vec ! [ & sf_0_out_0 ] ) ; } else { } } } ) ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; send ( r , vec ! [ ] ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; } else { } } } ) ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ) ;" == generated_sfns);
     }
 
     #[test]
@@ -426,7 +451,7 @@ mod tests {
         let generated_arcs = generate_arcs(&compiled).to_string();
         println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
         assert!(
-            "let ( sf_0_out_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;"
+            "let ( sf_0_out_0__sf_1_in_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;"
                 == generated_arcs
         );
 
@@ -435,7 +460,7 @@ mod tests {
             "Generated code for ops:\n{}\n",
             &(generated_ops.replace(";", ";\n"))
         );
-        assert!("tasks . push ( || { loop { some_op ( & sf_0_out_0 ) ; } } ) ; tasks . push ( || { loop { some_other_op ( & sf_1_in_0 ) ; } } ) ;" == generated_ops);
+        assert!("tasks . push ( || { loop { some_op ( & sf_0_out_0__sf_1_in_0 ) ; } } ) ; tasks . push ( || { loop { some_other_op ( & sf_1_in_0 ) ; } } ) ;" == generated_ops);
     }
 
     // {"graph":
