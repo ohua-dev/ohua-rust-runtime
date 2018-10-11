@@ -340,7 +340,7 @@ mod tests {
             "\nGenerated code for imports:\n{}\n",
             &(generated_imports.replace(";", ";\n"))
         );
-        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use runtime :: run_ohua ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use ohua_runtime :: { run_ohua , send } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -354,7 +354,7 @@ mod tests {
             "Generated code for sfns:\n{}\n",
             &(generated_sfns.replace(";", ";\n"))
         );
-        assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { if true { let r = some_sfn ( ) ; send ( r , vec ! [ & sf_0_out_0 ] ) ; } else { } } } ) ; tasks . push ( || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; send ( r , vec ! [ ] ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_sfn ( ) ; send ( r , vec ! [ & sf_0_out_0 ] ) ; } else { } } } ) ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; send ( r , vec ! [ ] ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ) ;" == generated_sfns);
     }
 
     #[test]
