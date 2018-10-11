@@ -2,6 +2,6 @@
 name = "ohua_runtime"
 version = "0.1.0"
 authors = ["Felix Wittwer <dev@felixwittwer.de>"]
-edition = "2018"
+edition = "2015"
 
 [dependencies]

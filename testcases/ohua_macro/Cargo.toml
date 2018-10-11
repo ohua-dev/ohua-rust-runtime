@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["Sebastian Ertel <sebastian.ertel@gmail.com>"]
 
 [dependencies]
-ohua_rust_runtime = { path = "../../" }
+ohua_codegen = { path = "../../ohua_codegen/" }
+ohua_runtime = { path = "../../ohua_runtime/" }

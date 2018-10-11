@@ -147,21 +147,10 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
 
 fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
     arcs.into_iter()
-        .find(|arc| { &(arc.target.operator) == op && arc.target.index == -1 } )
-        .map(|ctrl_arc| { generate_var_for_in_arc(&(ctrl_arc.target.operator), &(ctrl_arc.target.index)) } )
-}
-
-fn send<T: Copy>(val: T, outputs: Vec<&Sender<T>>) -> () {
-    // option 1: we could borrow here and then it would fail if somebody tries to write to val. (pass-by-ref)
-    // option 2: clone (pass-by-val)
-    // this is something that our knowledge base could be useful for: check if any of the predecessor.
-    // requires a mutable reference. if so then we need a clone for this predecessor.
-    // borrowing across channels does not seem to work. how do I make a ref read-only in Rust? is this possible at all?
-    match outputs.len() {
-            0 => (), // drop
-            1 => outputs[0].send(val).unwrap(),
-            _ => for output in outputs { output.send(val.clone()).unwrap(); },
-    };
+        .find(|arc| &(arc.target.operator) == op && arc.target.index == -1)
+        .map(|ctrl_arc| {
+            generate_var_for_in_arc(&(ctrl_arc.target.operator), &(ctrl_arc.target.index))
+        })
 }
 
 pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {

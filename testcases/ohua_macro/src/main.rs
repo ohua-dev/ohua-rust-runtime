@@ -1,10 +1,11 @@
 #![feature(proc_macro_hygiene)]
 
-extern crate ohua_rust_runtime;
+extern crate ohua_codegen;
+extern crate ohua_runtime;
 
 mod addition;
 
-use ohua_rust_runtime::ohua;
+use ohua_codegen::ohua;
 
 pub fn main() {
     #[ohua] foobar();
