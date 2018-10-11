@@ -1,12 +1,17 @@
 use std::sync::mpsc::Sender;
-
-type Task = Fn() -> ();
+use std::thread;
 
 // FIXME how do we get a result from this?
-pub fn run_ohua(tasks: Vec<Task>) -> ()
-// where T: Fn() -> ()
+pub fn run_ohua<F>(mut tasks: Vec<F>) -> ()
+where
+    F: FnOnce() -> (),
+    F: Send + 'static,
 {
-    // TODO Felix, please add your code here.
+    for task in tasks.drain(..) {
+        thread::spawn(move || {
+            task();
+        });
+    }
 }
 
 pub fn send<T: Copy>(val: T, outputs: Vec<&Sender<T>>) -> () {

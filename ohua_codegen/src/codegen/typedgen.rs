@@ -223,8 +223,8 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     let app_namespaces = generate_app_namespaces(operators);
 
     quote!{
-        use std::sync::mpsc::{Receiver,Sender};
-        use runtime::run_ohua;
+        use std::sync::mpsc::{Receiver, Sender};
+        use ohua_runtime::{run_ohua, send};
 
         #(#app_namespaces)*
     }
