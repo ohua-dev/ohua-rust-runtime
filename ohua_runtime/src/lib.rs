@@ -2,10 +2,10 @@ use std::sync::mpsc::Sender;
 use std::thread;
 
 // FIXME how do we get a result from this?
-pub fn run_ohua<F>(mut tasks: Vec<F>) -> ()
-where
-    F: FnOnce() -> (),
-    F: Send + 'static,
+pub fn run_ohua(mut tasks: Vec<Box<Fn() -> () + Send + 'static>>) -> ()
+// where
+//     F: FnOnce() -> (),
+//     F: Send + 'static,
 {
     for task in tasks.drain(..) {
         thread::spawn(move || {
