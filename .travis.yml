@@ -35,9 +35,13 @@ before_install:
 
 # run the normal build with tests
 script:
+  - cd ohua_codegen/
   - cargo build --verbose
   - cargo test
-  - cd testcases/ohua_macro/
+  - cd ../ohua_runtime/
+  - cargo build --verbose
+  - cargo test
+  - cd ../testcases/ohua_macro/
   - cargo run -- --nocapture
   # - cd ../../; cd testcases/argument_clone/
   # - cargo run
@@ -59,4 +63,4 @@ script:
   # - cargo run
   # - cd ../../; cd testcases/tuple_operator/
   # - cargo run
-  - cd ../../
+  # - cd ../../

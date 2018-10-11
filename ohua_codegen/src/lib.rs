@@ -23,7 +23,6 @@ mod errors;
 mod ohua_types;
 mod ohuac;
 mod type_extract;
-mod runtime;
 
 use codegen::generate_ohua_runtime;
 use codegen::typedgen::*;
