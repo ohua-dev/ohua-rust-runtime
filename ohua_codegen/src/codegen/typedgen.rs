@@ -176,16 +176,20 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
             in_arcs.append(&mut out_arcs);
             assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
 
-            quote!{
-                loop{
-                    // FIXME do we really have a valid design to handle control input for operators?
-                    //       how do we drain the inputs if the op dequeues n packets from some input channel???
-                    // if #ctrl.recv().unboxed() {
-                    #op_name(#(&#in_arcs),*);
-                    // } else {
-                    //     // skip
-                    // }
+            if in_arcs.len() > 0 {
+                quote!{
+                    loop{
+                        // FIXME do we really have a valid design to handle control input for operators?
+                        //       how do we drain the inputs if the op dequeues n packets from some input channel???
+                        // if #ctrl.recv().unboxed() {
+                        #op_name(#(&#in_arcs),*);
+                        // } else {
+                        //     // skip
+                        // }
+                    }
                 }
+            } else {
+                quote!{ #op_name() }
             }
         })
         .collect();
@@ -221,25 +225,27 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
                 &(compiled.graph.operators),
             );
             let sf = get_call_reference(&op.operatorType);
-            let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
-            let ctrl = match ctrl_port {
-                None => quote! {true},
-                Some(p) => quote!{#p.recv().unwrap()},
-            };
             let arcs = in_arcs.clone(); // can't reuse var in quote!
             let r = Ident::new(&"r", Span::call_site());
             let send = generate_send(&r, &out_arcs);
-            quote!{
-                loop {
-                    if #ctrl {
-                        let #r = #sf( #(#in_arcs.recv().unwrap()),* );
-                        #send
-                        //#send(r, vec![#(&#out_arcs),*]);
-                        // TODO check if it is ok, to use this macro inside procedural macro! otherwise just do: let v = Vec::new(); #(v.push(#out_arcs);)* send(r, &v);
-                    } else {
-                        // just drain and skip the call
-                        #(#arcs.recv().unwrap();)*
-                    }
+
+            let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
+
+            let drain_arcs = in_arcs.clone();
+            let num_in_arcs = in_arcs.len();
+            let drain_inputs = quote!{ #(#drain_arcs.recv().unwrap();)* };
+            let call_code = quote!{ #sf( #(#in_arcs.recv().unwrap()),* ) };
+            let sfn_code = quote!{ let #r = #call_code; #send };
+
+            if num_in_arcs > 0 {
+                match &ctrl_port {
+                    None    => quote!{ loop { #sfn_code } },
+                    Some(p) => quote!{ loop { if #p.recv().unwrap() { #sfn_code} else { #drain_inputs } } }
+                }
+            } else {
+                match &ctrl_port {
+                    None    => sfn_code,
+                    Some(p) => quote!{ loop { if #p.recv().unwrap() { #sfn_code } else { /* Drop call */ } } }
                 }
             }
         })
@@ -427,7 +433,7 @@ mod tests {
             "Generated code for sfns:\n{}\n",
             &(generated_sfns.replace(";", ";\n"))
         );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; } else { } } } ) ) ; tasks . push ( Box :: new ( move || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
