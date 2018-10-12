@@ -1,3 +1,9 @@
+
+# Only build the master branch.
+branches:
+  only:
+  - master
+
 language: rust
 
 rust:
