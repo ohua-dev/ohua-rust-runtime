@@ -1,22 +1,18 @@
-use std::sync::mpsc::Sender;
 use std::thread;
+use std::sync::mpsc::RecvError;
 
-// FIXME how do we get a result from this?
-pub fn run_ohua(mut tasks: Vec<Box<Fn() -> () + Send + 'static>>) -> ()
-// where
-//     F: FnOnce() -> (),
-//     F: Send + 'static,
+pub fn run_ohua(mut tasks: Vec<Box<Fn() -> Result<(), RecvError> + Send + 'static>>) -> ()
 {
     let mut handles = Vec::with_capacity(tasks.len());
     for task in tasks.drain(..) {
         handles.push(thread::spawn(move || {
-            task();
+            let _ = task();
         }));
     }
 
     for h in handles {
-        if let Err(e) = h.join() {
-            println!("Error: {:?}", e);
+        if let Err(_) = h.join() {
+            println!("[Error] A worker thread of an ohua algorithm has panicked!");
         }
     }
 }

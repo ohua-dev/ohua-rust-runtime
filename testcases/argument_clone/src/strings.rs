@@ -3,5 +3,7 @@ pub fn gen_string() -> String {
 }
 
 pub fn count_strings(a: String, b: String) -> i32 {
-    (a.len() + b.len()) as i32
+    let result = (a.len() + b.len()) as i32;
+    println!("{}", result);
+    result
 }

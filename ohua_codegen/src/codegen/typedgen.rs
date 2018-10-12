@@ -137,11 +137,16 @@ fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let outs = compiled.graph.arcs.iter().map(|arc| {
-        generate_out_arc_var(&arc, &(compiled.graph.operators))
-    });
-    let ins = compiled.graph.arcs.iter()
-                                 .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
+    let outs = compiled
+        .graph
+        .arcs
+        .iter()
+        .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
+    let ins = compiled
+        .graph
+        .arcs
+        .iter()
+        .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
 
     quote!{
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
@@ -233,26 +238,28 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
 
             let drain_arcs = in_arcs.clone();
             let num_in_arcs = in_arcs.len();
-            let drain_inputs = quote!{ #(#drain_arcs.recv().unwrap();)* };
-            let call_code = quote!{ #sf( #(#in_arcs.recv().unwrap()),* ) };
+            let drain_inputs = quote!{ #(#drain_arcs.recv()?;)* };
+            let call_code = quote!{ #sf( #(#in_arcs.recv()?),* ) };
             let sfn_code = quote!{ let #r = #call_code; #send };
 
             if num_in_arcs > 0 {
                 match &ctrl_port {
-                    None    => quote!{ loop { #sfn_code } },
-                    Some(p) => quote!{ loop { if #p.recv().unwrap() { #sfn_code} else { #drain_inputs } } }
+                    None => quote!{ loop { #sfn_code } },
+                    Some(p) => quote!{ loop { if #p.recv()? { #sfn_code} else { #drain_inputs } } },
                 }
             } else {
                 match &ctrl_port {
-                    None    => sfn_code,
-                    Some(p) => quote!{ loop { if #p.recv().unwrap() { #sfn_code } else { /* Drop call */ } } }
+                    None => quote!{ #sfn_code Ok(()) },
+                    Some(p) => {
+                        quote!{ loop { if #p.recv()? { #sfn_code } else { /* Drop call */ } } }
+                    }
                 }
             }
         })
         .collect();
 
     quote!{
-        let mut tasks: Vec<Box<Fn() -> () + Send + 'static>> = Vec::new();
+        let mut tasks: Vec<Box<Fn() -> Result<(), RecvError> + Send + 'static>> = Vec::new();
         #(tasks.push(Box::new(move || { #sf_codes })); )*
     }
 }
@@ -272,7 +279,7 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
         _ => {
             let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
             quote!{
-                #(#outputs.send(#results.clone()).unwrap());*
+                #(#outputs.send(#results.clone()).unwrap());*;
                 // for output in [#(#outputs),*].iter() {
                 //     output.send(#r.clone()).unwrap();
                 // }
@@ -318,7 +325,7 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     let app_namespaces = generate_app_namespaces(operators);
 
     quote!{
-        use std::sync::mpsc::{Receiver, Sender};
+        use std::sync::mpsc::{Receiver, RecvError, Sender};
         use ohua_runtime::run_ohua;
 
         #(#app_namespaces)*
@@ -433,7 +440,7 @@ mod tests {
             "Generated code for sfns:\n{}\n",
             &(generated_sfns.replace(";", ";\n"))
         );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
