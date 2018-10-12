@@ -1,4 +1,5 @@
 #![allow(unused_doc_comments)]
+use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
 
 use ohua_types::ValueType::{EnvironmentVal, LocalVal};
@@ -289,20 +290,17 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
 }
 
 fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
-    operators
+    let mut namespaces = HashSet::new();
+    for op in operators {
+        let mut r = op.operatorType.qbNamespace.to_vec();
+        r.push(op.operatorType.qbName.to_string());
+
+        namespaces.insert(r);
+    }
+
+    namespaces
         .iter()
-        .map(|op| &op.operatorType)
-        .map(|op| {
-            let mut r = op.qbNamespace.to_vec();
-            r.push(op.qbName.to_string());
-            // let ns = r.join("::");
-            // let ns_id = Ident::new(&ns, Span::call_site());
-            // splicing this in gives me the following error:
-            // "ns1::some_sfn" is not a valid Ident
-            // in order to do that properly, I would need to create a UseTree:
-            // https://docs.rs/syn/0.15/syn/enum.UseTree.html
-            // where each element is again an Ident.
-            // I think this is is easier:
+        .map(|r| {
             let initial_val = Ident::new(&r[0], Span::call_site());
             let ns_id = r
                 .iter()
