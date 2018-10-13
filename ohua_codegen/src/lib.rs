@@ -112,7 +112,7 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     println!("{}", &ohua_data);
 
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
-    let final_code = generate_code(&ohua_data);
+    let final_code = generate_code(&ohua_data, &algo_args);
     println!(" Done!");
 
     println!("{}", final_code.clone().to_string());

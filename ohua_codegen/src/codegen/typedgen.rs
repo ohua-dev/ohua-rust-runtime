@@ -1,11 +1,16 @@
 #![allow(unused_doc_comments)]
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::sync::mpsc::{Receiver, Sender};
 
 use ohua_types::ValueType::{EnvironmentVal, LocalVal};
 use ohua_types::{Arc, ArcSource, OhuaData, OpType, Operator, OperatorType, ValueType};
 
 use proc_macro2::{Ident, Span, TokenStream};
+use syn::punctuated::Punctuated;
+use syn::Expr;
+use quote::ToTokens;
+
+// TODO turn this into a struct that contains the graph and the args
 
 fn get_op_id(val: &ValueType) -> &i32 {
     match val {
@@ -52,6 +57,14 @@ fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
             EnvironmentVal(i) => unimplemented!(),
             LocalVal(a_id) => &(a_id.operator) == op,
         })
+        .collect();
+    t
+}
+
+fn get_in_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
+    let t = arcs
+        .iter()
+        .filter(|arc| &(arc.target.operator) == op)
         .collect();
     t
 }
@@ -122,12 +135,22 @@ fn generate_var_for_in_arc(op: &i32, idx: &i32) -> Ident {
     )
 }
 
-fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>) -> Vec<Ident> {
-    let n = get_num_inputs(&op, &arcs);
+/**
+ Generates the parameters for a call.
+ */
+fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>,
+                        algo_call_args: &Punctuated<Expr, Token![,]>) -> Vec<TokenStream> {
     // TODO handle control arcs. (control arc := target_idx = -1)
-    (0..n)
-        .map(|i| generate_var_for_in_arc(op, &(i as i32)))
-        .collect()
+    let mut in_arcs = get_in_arcs(op, arcs);
+    in_arcs.sort_by_key(|a| a.target.index);
+    in_arcs.iter()
+           .map(|a| {
+               match a.source.val {
+                   EnvironmentVal(i) => algo_call_args.iter().nth(i as usize).expect("Invariant broken!").into_token_stream(),
+                   LocalVal(ref arc) => generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
+               }
+           })
+           .collect()
 }
 
 fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<Ident> {
@@ -171,24 +194,30 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
     });
     let op_codes: Vec<TokenStream> = ops
         .map(|op| {
-            let mut in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
-            let mut out_arcs = generate_out_arcs_vec(
+            let mut call_args = generate_in_arcs_vec(
+                &(op.operatorId),
+                &(compiled.graph.arcs),
+                &Punctuated::new()); // ops can never have EnvArgs -> invariant broken
+            let out_arcs = generate_out_arcs_vec(
                 &(op.operatorId),
                 &(compiled.graph.arcs),
                 &(compiled.graph.operators),
             );
+
+            let c = out_arcs.iter().map(ToTokens::into_token_stream);
+            call_args.extend(c);
+
             let op_name = get_call_reference(&op.operatorType);
 
-            in_arcs.append(&mut out_arcs);
             assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
 
-            if in_arcs.len() > 0 {
+            if call_args.len() > 0 {
                 quote!{
                     loop{
                         // FIXME do we really have a valid design to handle control input for operators?
                         //       how do we drain the inputs if the op dequeues n packets from some input channel???
                         // if #ctrl.recv().unboxed() {
-                        #op_name(#(&#in_arcs),*);
+                        #op_name(#(&#call_args),*);
                         // } else {
                         //     // skip
                         // }
@@ -213,7 +242,7 @@ fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
         })
 }
 
-pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
+pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Token![,]>) -> TokenStream {
     let sfns = compiled
         .graph
         .operators
@@ -224,7 +253,7 @@ pub fn generate_sfns(compiled: &OhuaData) -> TokenStream {
         });
     let sf_codes: Vec<TokenStream> = sfns
         .map(|op| {
-            let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs));
+            let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), algo_call_args);
             let out_arcs = generate_out_arcs_vec(
                 &op.operatorId,
                 &(compiled.graph.arcs),
@@ -290,7 +319,7 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
 }
 
 fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
-    let mut namespaces = HashSet::new();
+    let mut namespaces = BTreeSet::new();
     for op in operators {
         let mut r = op.operatorType.qbNamespace.to_vec();
         r.push(op.operatorType.qbName.to_string());
@@ -330,10 +359,10 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     }
 }
 
-pub fn generate_code(compiled: &OhuaData) -> TokenStream {
-    let header_code = generate_imports(&compiled.graph.operators);
-    let arc_code = generate_arcs(&compiled);
-    let op_code = generate_sfns(&compiled);
+pub fn generate_code(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr, Token![,]>) -> TokenStream {
+    let header_code = generate_imports(&compiled_algo.graph.operators);
+    let arc_code = generate_arcs(&compiled_algo);
+    let op_code = generate_sfns(&compiled_algo, algo_call_args);
 
     quote!{
         {
@@ -424,7 +453,7 @@ mod tests {
             "\nGenerated code for imports:\n{}\n",
             &(generated_imports.replace(";", ";\n"))
         );
-        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use ohua_runtime :: run_ohua ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: { Receiver , RecvError , Sender } ; use ohua_runtime :: run_ohua ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -433,12 +462,12 @@ mod tests {
                 == generated_arcs
         );
 
-        let generated_sfns = generate_sfns(&compiled).to_string();
+        let generated_sfns = generate_sfns(&compiled, &Punctuated::new()).to_string();
         println!(
             "Generated code for sfns:\n{}\n",
             &(generated_sfns.replace(";", ";\n"))
         );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> ( ) + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
