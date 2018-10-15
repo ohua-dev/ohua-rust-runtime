@@ -23,7 +23,9 @@ mod errors;
 mod ohua_types;
 mod ohuac;
 mod type_extract;
+mod parse;
 
+use parse::parse_ohua_call;
 use codegen::generate_ohua_runtime;
 use codegen::typedgen::*;
 use errors::*;
@@ -46,33 +48,8 @@ use syn::{Expr, ExprCall, ExprPath, Stmt};
  */
 #[proc_macro_attribute]
 pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
-    // Parse the input tokens into a syntax tree, extract necessary information
-    let ast: Stmt = match syn::parse(input) {
-        Ok(ast) => ast,
-        Err(e) => panic!("{}", e),
-    };
 
-    let expression: Expr = match ast {
-        Stmt::Expr(e) => e,
-        Stmt::Semi(e, _) => e,
-        _ => panic!("Encountered unsupported statement after #[ohua] macro"),
-    };
-
-    let algo_call: ExprCall = if let Expr::Call(fn_call) = expression {
-        fn_call
-    } else {
-        panic!("The #[ohua] macro may only be applied to a function call.");
-    };
-
-    if !args.is_empty() {
-        panic!("The #[ohua] macro does currently not support macro arguments.");
-    }
-
-    let algo_name: ExprPath = match *algo_call.func {
-        Expr::Path(path) => path,
-        _ => panic!("Malformed algorithm invocation. Expected a qualified path."),
-    };
-    let algo_args: Punctuated<Expr, Token![,]> = algo_call.args; // https://docs.serde.rs/syn/punctuated/index.html
+    let (algo_name, algo_args) = parse_ohua_call(args, input);
 
     // after the initial parsing/verification, the compilation can begin
     // create a temporary directory

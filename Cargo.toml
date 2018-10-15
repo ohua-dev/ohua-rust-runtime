@@ -1,0 +1,6 @@
+# Cargo.toml
+[workspace]
+members = [
+    "ohua_codegen",
+    "ohua_runtime",
+]

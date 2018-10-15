@@ -54,7 +54,7 @@ fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
     let t = arcs
         .iter()
         .filter(|arc| match &(arc.source.val) {
-            EnvironmentVal(i) => unimplemented!(),
+            EnvironmentVal(i) => false,
             LocalVal(a_id) => &(a_id.operator) == op,
         })
         .collect();
@@ -146,8 +146,13 @@ fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>,
     in_arcs.iter()
            .map(|a| {
                match a.source.val {
-                   EnvironmentVal(i) => algo_call_args.iter().nth(i as usize).expect("Invariant broken!").into_token_stream(),
-                   LocalVal(ref arc) => generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
+                   EnvironmentVal(i) =>
+                        algo_call_args.iter()
+                                      .nth(i as usize)
+                                      .expect(&format!("Invariant broken! {}, {}", i, algo_call_args.len()).to_string())
+                                      .into_token_stream(),
+                   LocalVal(ref arc) =>
+                        generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
                }
            })
            .collect()
@@ -161,16 +166,13 @@ fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let outs = compiled
-        .graph
-        .arcs
-        .iter()
-        .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
-    let ins = compiled
-        .graph
-        .arcs
-        .iter()
-        .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
+    let arcs: Vec<&Arc> = compiled.graph.arcs.iter()
+                                  .filter(|a| filter_env_arc(&a))
+                                  .collect();
+    let outs = arcs.iter()
+                   .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
+    let ins = arcs.iter()
+                  .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
 
     quote!{
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
@@ -242,6 +244,13 @@ fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
         })
 }
 
+fn filter_env_arc(arc: &Arc) -> bool {
+    match arc.source.val {
+        EnvironmentVal(_) => false,
+        _ => true
+    }
+}
+
 pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Token![,]>) -> TokenStream {
     let sfns = compiled
         .graph
@@ -254,25 +263,40 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
     let sf_codes: Vec<TokenStream> = sfns
         .map(|op| {
             let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), algo_call_args);
+            let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs));
+            let zipped_in_arcs: Vec<(&&Arc, &TokenStream)> = orig_in_arcs.iter().zip(in_arcs.iter()).collect();
+
             let out_arcs = generate_out_arcs_vec(
                 &op.operatorId,
                 &(compiled.graph.arcs),
                 &(compiled.graph.operators),
             );
+
             let sf = get_call_reference(&op.operatorType);
-            let arcs = in_arcs.clone(); // can't reuse var in quote!
+            // let arcs = in_arcs.clone(); // can't reuse var in quote!
             let r = Ident::new(&"r", Span::call_site());
             let send = generate_send(&r, &out_arcs);
 
             let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
 
-            let drain_arcs = in_arcs.clone();
-            let num_in_arcs = in_arcs.len();
+            let drain_arcs: Vec<&TokenStream> = zipped_in_arcs.iter()
+                                                            .filter(|(arc, _ )| filter_env_arc(&arc))
+                                                            .map(|(_,t)| t.clone())
+                                                            .collect();
             let drain_inputs = quote!{ #(#drain_arcs.recv()?;)* };
-            let call_code = quote!{ #sf( #(#in_arcs.recv()?),* ) };
+
+            let call_args: Vec<TokenStream> = zipped_in_arcs.iter()
+                                                            .map(|(orig_arc, code)| {
+                                                              match orig_arc.source.val {
+                                                                  EnvironmentVal(_) => code.clone().clone(),
+                                                                  LocalVal(_) => quote!{ #code.recv()? }
+                                                              }
+                                                             })
+                                                             .collect();
+            let call_code = quote!{ #sf( #(#call_args),* ) };
             let sfn_code = quote!{ let #r = #call_code; #send };
 
-            if num_in_arcs > 0 {
+            if orig_in_arcs.len() > 0 {
                 match &ctrl_port {
                     None => quote!{ loop { #sfn_code } },
                     Some(p) => quote!{ loop { if #p.recv()? { #sfn_code} else { #drain_inputs } } },
@@ -310,9 +334,6 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
             let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
             quote!{
                 #(#outputs.send(#results.clone()).unwrap());*;
-                // for output in [#(#outputs),*].iter() {
-                //     output.send(#r.clone()).unwrap();
-                // }
             }
         }
     }
@@ -379,7 +400,12 @@ pub fn generate_code(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr,
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+use parse::tests::parse_call;
+use syn::PathSegment;
+use syn::Path;
+use syn::ExprPath;
+use super::*;
 
     use std::sync::mpsc;
 
@@ -449,24 +475,24 @@ mod tests {
         );
 
         let generated_imports = generate_imports(&compiled.graph.operators).to_string();
-        println!(
-            "\nGenerated code for imports:\n{}\n",
-            &(generated_imports.replace(";", ";\n"))
-        );
+        // println!(
+        //     "\nGenerated code for imports:\n{}\n",
+        //     &(generated_imports.replace(";", ";\n"))
+        // );
         assert!("use std :: sync :: mpsc :: { Receiver , RecvError , Sender } ; use ohua_runtime :: run_ohua ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
-        println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
+        // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
         assert!(
             "let ( sf_0_out_0__sf_1_in_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;"
                 == generated_arcs
         );
 
         let generated_sfns = generate_sfns(&compiled, &Punctuated::new()).to_string();
-        println!(
-            "Generated code for sfns:\n{}\n",
-            &(generated_sfns.replace(";", ";\n"))
-        );
+        // println!(
+        //     "Generated code for sfns:\n{}\n",
+        //     &(generated_sfns.replace(";", ";\n"))
+        // );
         assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; } } ) ) ;" == generated_sfns);
     }
 
@@ -489,49 +515,72 @@ mod tests {
         );
 
         let generated_arcs = generate_arcs(&compiled).to_string();
-        println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
+        // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
         assert!(
             "let ( sf_0_out_0__sf_1_in_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;"
                 == generated_arcs
         );
 
         let generated_ops = generate_ops(&compiled).to_string();
-        println!(
-            "Generated code for ops:\n{}\n",
-            &(generated_ops.replace(";", ";\n"))
-        );
+        // println!(
+        //     "Generated code for ops:\n{}\n",
+        //     &(generated_ops.replace(";", ";\n"))
+        // );
         assert!("tasks . push ( || { loop { some_op ( & sf_0_out_0__sf_1_in_0 ) ; } } ) ; tasks . push ( || { loop { some_other_op ( & sf_1_in_0 ) ; } } ) ;" == generated_ops);
     }
 
-    // {"graph":
-    //   {"operators":[{"id":1,"type":{"namespace":["addition"],"name":"produce"}},
-    //                 {"id":2,"type":{"namespace":["addition"],"name":"consume"}}],
-    //    "arcs":[{"target":{"operator":2,"index":0},"source":{"type":"local","val":{"operator":1,"index":-1}}}],
-    //    "return_arc":{"operator":2,"index":-1}
-    //   },
-    // #[test]
-    // fn sf_code_gen() {
-    //     let compiled = producer_consumer(OperatorType {
-    //                                         qbNamespace: Vec::new(),
-    //                                         qbName: "none".to_string(),
-    //                                         func: "some_sfn".to_string(),
-    //                                         op_type: OpType::SfnWrapper,
-    //                                     },
-    //                                     OperatorType {
-    //                                         qbNamespace: Vec::new(),
-    //                                         qbName: "none".to_string(),
-    //                                         func: "some_other_sfn".to_string(),
-    //                                         op_type: OpType::SfnWrapper,
-    //                                     },
-    //                                    -1);
-    //
-    //     let generated_arcs = generate_arcs(&compiled).to_string();
-    //     println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
-    //     // assert!("let ( sf_0_out_0 , sf_1_in_0 ) = std :: sync :: mpsc :: channel ( ) ;" == generated_arcs);
-    //
-    //     let generated_sfns = generate_sfns(&compiled).to_string();
-    //     println!("Generated code for sfns:\n{}\n", &(generated_sfns.replace(";", ";\n")));
-    //     // assert!("let mut tasks = Vec :: new ( ) ; tasks . push ( || { loop { if true { let r = some_sfn ( ) ; send ( r , vec ! [ & sf_0_out_0 ] ) ; } else { } } } ) ; tasks . push ( || { loop { if true { let r = some_other_sfn ( sf_1_in_0 . recv ( ) . unwrap ( ) ) ; send ( r , vec ! [ ] ) ; } else { sf_1_in_0 . recv ( ) . unwrap ( ) ; } } } ) ;" == generated_sfns);
-    // }
+    #[test]
+    fn env_args_code_gen(){
+        let compiled = OhuaData {
+                            graph: DFGraph {
+                                operators: vec![
+                                    Operator {
+                                        operatorId: 0,
+                                        operatorType: OperatorType {
+                                                        qbNamespace: vec!["ns1".to_string()],
+                                                        qbName: "some_sfn".to_string(),
+                                                        func: "none".to_string(),
+                                                        op_type: OpType::SfnWrapper,
+                                                    },
+                                    }
+                                ],
+                                arcs: vec![Arc {
+                                    target: ArcIdentifier {
+                                        operator: 0,
+                                        index: 0,
+                                    },
+                                    source: ArcSource {
+                                        s_type: "".to_string(),
+                                        val: ValueType::EnvironmentVal(0),
+                                    },
+                                }],
+                                return_arc: ArcIdentifier {
+                                    operator: 1,
+                                    index: -1,
+                                },
+                                input_targets: Vec::new(),
+                            },
+                            mainArity: 1,
+                            sfDependencies: Vec::new(),
+                        };
 
+        // let c = quote!{ some_algo(arg1) };
+        // let b = c.into();
+        // let a = TokenStream::new().into();
+        // let (_, call_args) = parse_ohua_call(a, b);
+        // above does not work: panicked at 'procedural macro API is used outside of a procedural macro', libproc_macro/lib.rs:1314:13
+
+        let (_, call_args) = parse_call("some_algo(arg1)");
+
+        let generated_arcs = generate_arcs(&compiled).to_string();
+        println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
+        assert!("" == generated_arcs);
+
+        let generated_sfns = generate_sfns(&compiled, &call_args).to_string();
+        println!(
+            "Generated code for sfns:\n{}\n",
+            &(generated_sfns.replace(";", ";\n"))
+        );
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { let r = some_sfn ( arg1 ) ; } } ) ) ;" == generated_sfns);
+    }
 }
