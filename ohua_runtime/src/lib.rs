@@ -1,7 +1,7 @@
 use std::thread;
 use std::sync::mpsc::RecvError;
 
-pub fn run_ohua(mut tasks: Vec<Box<Fn() -> Result<(), RecvError> + Send + 'static>>) -> ()
+pub fn run_tasks(mut tasks: Vec<Box<Fn() -> Result<(), RecvError> + Send + 'static>>) -> ()
 {
     let mut handles = Vec::with_capacity(tasks.len());
     for task in tasks.drain(..) {
