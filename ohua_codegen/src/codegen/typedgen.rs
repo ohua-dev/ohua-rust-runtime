@@ -10,8 +10,6 @@ use syn::punctuated::Punctuated;
 use syn::Expr;
 use quote::ToTokens;
 
-// TODO turn this into a struct that contains the graph and the args
-
 fn get_op_id(val: &ValueType) -> &i32 {
     match val {
         ValueType::EnvironmentVal(i) => i,
@@ -275,7 +273,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
             let sf = get_call_reference(&op.operatorType);
             // let arcs = in_arcs.clone(); // can't reuse var in quote!
             let r = Ident::new(&"r", Span::call_site());
-            let send = generate_send(&r, &out_arcs);
+            let send = generate_send(&r, &out_arcs, &op.operatorId, &compiled.graph.return_arc.operator);
 
             let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
 
@@ -303,7 +301,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
                 }
             } else {
                 match &ctrl_port {
-                    None => quote!{ #sfn_code Ok(()) },
+                    None => quote!{ #sfn_code },
                     Some(p) => {
                         quote!{ loop { if #p.recv()? { #sfn_code } else { /* Drop call */ } } }
                     }
@@ -318,22 +316,28 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
     }
 }
 
-fn generate_send(r: &Ident, outputs: &Vec<Ident>) -> TokenStream {
+fn generate_send(r: &Ident, outputs: &Vec<Ident>, op:&i32, final_op: &i32) -> TokenStream {
     // option 1: we could borrow here and then it would fail if somebody tries to write to val. (pass-by-ref)
     // option 2: clone (pass-by-val)
     // this is something that our knowledge base could be useful for: check if any of the predecessor.
     // requires a mutable reference. if so then we need a clone for this predecessor.
     // borrowing across channels does not seem to work. how do I make a ref read-only in Rust? is this possible at all?
     match outputs.len() {
-        0 => quote!{}, // drop
+        0 => {
+            if op == final_op {
+                quote!{ result_snd.send(#r)?; }
+            } else {
+                quote!{} // drop
+            }
+        },
         1 => {
             let o = &outputs[0];
-            quote!{ #o.send(#r).unwrap(); }
+            quote!{ #o.send(#r)? }
         }
         _ => {
             let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
             quote!{
-                #(#outputs.send(#results.clone()).unwrap());*;
+                #(#outputs.send(#results.clone())?);*;
             }
         }
     }
@@ -385,15 +389,21 @@ pub fn generate_code(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr,
     let arc_code = generate_arcs(&compiled_algo);
     let op_code = generate_sfns(&compiled_algo, algo_call_args);
 
+    // Macro hygiene: I can create a variable here and use it throughout the whole call-site of this
+    // macro because quote! has Span:call_site() -> call site = call site of the macro!
+    // https://github.com/dtolnay/quote
+    // https://docs.rs/proc-macro2/0.4/proc_macro2/struct.Span.html#method.call_site
     quote!{
         {
             #header_code
 
             #arc_code
+            let (result_snd, result_rcv) = std::sync::mpsc::channel();
 
             #op_code
 
-            run_ohua(tasks)
+            run_tasks(tasks);
+            result_rcv.recv()?;
         }
     }
 }
@@ -493,7 +503,7 @@ use super::*;
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) . unwrap ( ) ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) ? } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . send ( r ) ? ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
@@ -573,14 +583,14 @@ use super::*;
         let (_, call_args) = parse_call("some_algo(arg1)");
 
         let generated_arcs = generate_arcs(&compiled).to_string();
-        println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
+        // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
         assert!("" == generated_arcs);
 
         let generated_sfns = generate_sfns(&compiled, &call_args).to_string();
-        println!(
-            "Generated code for sfns:\n{}\n",
-            &(generated_sfns.replace(";", ";\n"))
-        );
+        // println!(
+        //     "Generated code for sfns:\n{}\n",
+        //     &(generated_sfns.replace(";", ";\n"))
+        // );
         assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { let r = some_sfn ( arg1 ) ; } } ) ) ;" == generated_sfns);
     }
 }
