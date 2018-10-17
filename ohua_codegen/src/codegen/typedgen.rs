@@ -301,7 +301,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
                 }
             } else {
                 match &ctrl_port {
-                    None => quote!{ #sfn_code },
+                    None => quote!{ #sfn_code; Ok(()) },
                     Some(p) => {
                         quote!{ loop { if #p.recv()? { #sfn_code } else { /* Drop call */ } } }
                     }
@@ -378,7 +378,7 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
 
     quote!{
         use std::sync::mpsc::{Receiver, RecvError, Sender};
-        use ohua_runtime::run_ohua;
+        use ohua_runtime::*;
 
         #(#app_namespaces)*
     }
@@ -489,7 +489,7 @@ use super::*;
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: { Receiver , RecvError , Sender } ; use ohua_runtime :: run_ohua ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: { Receiver , RecvError , Sender } ; use ohua_runtime :: * ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
