@@ -1,9 +1,0 @@
-ns some_ns;
-
-use sf tuples (append_to_string, extend_string, output_values);
-
-fn main(input_number: i32, input_string: String) -> (i32, String, usize) {
-    let intermediate = append_to_string(input_string, input_number);
-    let extended = extend_string(intermediate);
-    output_values(input_number, extended)
-}
