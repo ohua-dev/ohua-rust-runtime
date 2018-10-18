@@ -6,9 +6,9 @@ use ohua_types::ValueType::{EnvironmentVal, LocalVal};
 use ohua_types::{Arc, ArcSource, OhuaData, OpType, Operator, OperatorType, ValueType};
 
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::Expr;
-use quote::ToTokens;
 
 fn get_op_id(val: &ValueType) -> &i32 {
     match val {
@@ -134,26 +134,29 @@ fn generate_var_for_in_arc(op: &i32, idx: &i32) -> Ident {
 }
 
 /**
- Generates the parameters for a call.
- */
-fn generate_in_arcs_vec(op: &i32, arcs: &Vec<Arc>,
-                        algo_call_args: &Punctuated<Expr, Token![,]>) -> Vec<TokenStream> {
+Generates the parameters for a call.
+*/
+fn generate_in_arcs_vec(
+    op: &i32,
+    arcs: &Vec<Arc>,
+    algo_call_args: &Punctuated<Expr, Token![,]>,
+) -> Vec<TokenStream> {
     // TODO handle control arcs. (control arc := target_idx = -1)
     let mut in_arcs = get_in_arcs(op, arcs);
     in_arcs.sort_by_key(|a| a.target.index);
-    in_arcs.iter()
-           .map(|a| {
-               match a.source.val {
-                   EnvironmentVal(i) =>
-                        algo_call_args.iter()
-                                      .nth(i as usize)
-                                      .expect(&format!("Invariant broken! {}, {}", i, algo_call_args.len()).to_string())
-                                      .into_token_stream(),
-                   LocalVal(ref arc) =>
-                        generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
-               }
-           })
-           .collect()
+    in_arcs
+        .iter()
+        .map(|a| match a.source.val {
+            EnvironmentVal(i) => algo_call_args
+                .iter()
+                .nth(i as usize)
+                .expect(&format!("Invariant broken! {}, {}", i, algo_call_args.len()).to_string())
+                .into_token_stream(),
+            LocalVal(ref arc) => {
+                generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
+            }
+        })
+        .collect()
 }
 
 fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<Ident> {
@@ -164,13 +167,18 @@ fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let arcs: Vec<&Arc> = compiled.graph.arcs.iter()
-                                  .filter(|a| filter_env_arc(&a))
-                                  .collect();
-    let outs = arcs.iter()
-                   .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
-    let ins = arcs.iter()
-                  .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
+    let arcs: Vec<&Arc> = compiled
+        .graph
+        .arcs
+        .iter()
+        .filter(|a| filter_env_arc(&a))
+        .collect();
+    let outs = arcs
+        .iter()
+        .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
+    let ins = arcs
+        .iter()
+        .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
 
     quote!{
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
@@ -194,10 +202,8 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
     });
     let op_codes: Vec<TokenStream> = ops
         .map(|op| {
-            let mut call_args = generate_in_arcs_vec(
-                &(op.operatorId),
-                &(compiled.graph.arcs),
-                &Punctuated::new()); // ops can never have EnvArgs -> invariant broken
+            let mut call_args =
+                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), &Punctuated::new()); // ops can never have EnvArgs -> invariant broken
             let out_arcs = generate_out_arcs_vec(
                 &(op.operatorId),
                 &(compiled.graph.arcs),
@@ -245,11 +251,14 @@ fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
 fn filter_env_arc(arc: &Arc) -> bool {
     match arc.source.val {
         EnvironmentVal(_) => false,
-        _ => true
+        _ => true,
     }
 }
 
-pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Token![,]>) -> TokenStream {
+pub fn generate_sfns(
+    compiled: &OhuaData,
+    algo_call_args: &Punctuated<Expr, Token![,]>,
+) -> TokenStream {
     let sfns = compiled
         .graph
         .operators
@@ -260,9 +269,11 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
         });
     let sf_codes: Vec<TokenStream> = sfns
         .map(|op| {
-            let in_arcs = generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), algo_call_args);
+            let in_arcs =
+                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), algo_call_args);
             let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs));
-            let zipped_in_arcs: Vec<(&&Arc, &TokenStream)> = orig_in_arcs.iter().zip(in_arcs.iter()).collect();
+            let zipped_in_arcs: Vec<(&&Arc, &TokenStream)> =
+                orig_in_arcs.iter().zip(in_arcs.iter()).collect();
 
             let out_arcs = generate_out_arcs_vec(
                 &op.operatorId,
@@ -273,25 +284,30 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
             let sf = get_call_reference(&op.operatorType);
             // let arcs = in_arcs.clone(); // can't reuse var in quote!
             let r = Ident::new(&"r", Span::call_site());
-            let send = generate_send(&r, &out_arcs, &op.operatorId, &compiled.graph.return_arc.operator);
+            let send = generate_send(
+                &r,
+                &out_arcs,
+                &op.operatorId,
+                &compiled.graph.return_arc.operator,
+            );
 
             let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
 
-            let drain_arcs: Vec<&TokenStream> = zipped_in_arcs.iter()
-                                                            .filter(|(arc, _ )| filter_env_arc(&arc))
-                                                            .map(|(_,t)| t.clone())
-                                                            .collect();
+            let drain_arcs: Vec<&TokenStream> = zipped_in_arcs
+                .iter()
+                .filter(|(arc, _)| filter_env_arc(&arc))
+                .map(|(_, t)| t.clone())
+                .collect();
             let num_input_arcs = drain_arcs.len();
             let drain_inputs = quote!{ #(#drain_arcs.recv()?;)* };
 
-            let call_args: Vec<TokenStream> = zipped_in_arcs.iter()
-                                                            .map(|(orig_arc, code)| {
-                                                              match orig_arc.source.val {
-                                                                  EnvironmentVal(_) => code.clone().clone(),
-                                                                  LocalVal(_) => quote!{ #code.recv()? }
-                                                              }
-                                                             })
-                                                             .collect();
+            let call_args: Vec<TokenStream> = zipped_in_arcs
+                .iter()
+                .map(|(orig_arc, code)| match orig_arc.source.val {
+                    EnvironmentVal(_) => code.clone().clone(),
+                    LocalVal(_) => quote!{ #code.recv()? },
+                })
+                .collect();
             let call_code = quote!{ #sf( #(#call_args),* ) };
             let sfn_code = quote!{ let #r = #call_code; #send };
 
@@ -317,7 +333,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
     }
 }
 
-fn generate_send(r: &Ident, outputs: &Vec<Ident>, op:&i32, final_op: &i32) -> TokenStream {
+fn generate_send(r: &Ident, outputs: &Vec<Ident>, op: &i32, final_op: &i32) -> TokenStream {
     // option 1: we could borrow here and then it would fail if somebody tries to write to val. (pass-by-ref)
     // option 2: clone (pass-by-val)
     // this is something that our knowledge base could be useful for: check if any of the predecessor.
@@ -330,7 +346,7 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>, op:&i32, final_op: &i32) -> To
             } else {
                 quote!{} // drop
             }
-        },
+        }
         1 => {
             let o = &outputs[0];
             quote!{ #o.send(#r)? }
@@ -378,14 +394,17 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     let app_namespaces = generate_app_namespaces(operators);
 
     quote!{
-        use std::sync::mpsc::{Receiver, RecvError, Sender};
+        use std::sync::mpsc::{Receiver, Sender};
         use ohua_runtime::*;
 
         #(#app_namespaces)*
     }
 }
 
-pub fn generate_code(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr, Token![,]>) -> TokenStream {
+pub fn generate_code(
+    compiled_algo: &OhuaData,
+    algo_call_args: &Punctuated<Expr, Token![,]>,
+) -> TokenStream {
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
     let op_code = generate_sfns(&compiled_algo, algo_call_args);
@@ -412,11 +431,11 @@ pub fn generate_code(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr,
 #[cfg(test)]
 mod tests {
 
-use parse::tests::parse_call;
-use syn::PathSegment;
-use syn::Path;
-use syn::ExprPath;
-use super::*;
+    use super::*;
+    use parse::tests::parse_call;
+    use syn::ExprPath;
+    use syn::Path;
+    use syn::PathSegment;
 
     use std::sync::mpsc;
 
@@ -541,39 +560,37 @@ use super::*;
     }
 
     #[test]
-    fn env_args_code_gen(){
+    fn env_args_code_gen() {
         let compiled = OhuaData {
-                            graph: DFGraph {
-                                operators: vec![
-                                    Operator {
-                                        operatorId: 0,
-                                        operatorType: OperatorType {
-                                                        qbNamespace: vec!["ns1".to_string()],
-                                                        qbName: "some_sfn".to_string(),
-                                                        func: "none".to_string(),
-                                                        op_type: OpType::SfnWrapper,
-                                                    },
-                                    }
-                                ],
-                                arcs: vec![Arc {
-                                    target: ArcIdentifier {
-                                        operator: 0,
-                                        index: 0,
-                                    },
-                                    source: ArcSource {
-                                        s_type: "".to_string(),
-                                        val: ValueType::EnvironmentVal(0),
-                                    },
-                                }],
-                                return_arc: ArcIdentifier {
-                                    operator: 1,
-                                    index: -1,
-                                },
-                                input_targets: Vec::new(),
-                            },
-                            mainArity: 1,
-                            sfDependencies: Vec::new(),
-                        };
+            graph: DFGraph {
+                operators: vec![Operator {
+                    operatorId: 0,
+                    operatorType: OperatorType {
+                        qbNamespace: vec!["ns1".to_string()],
+                        qbName: "some_sfn".to_string(),
+                        func: "none".to_string(),
+                        op_type: OpType::SfnWrapper,
+                    },
+                }],
+                arcs: vec![Arc {
+                    target: ArcIdentifier {
+                        operator: 0,
+                        index: 0,
+                    },
+                    source: ArcSource {
+                        s_type: "".to_string(),
+                        val: ValueType::EnvironmentVal(0),
+                    },
+                }],
+                return_arc: ArcIdentifier {
+                    operator: 1,
+                    index: -1,
+                },
+                input_targets: Vec::new(),
+            },
+            mainArity: 1,
+            sfDependencies: Vec::new(),
+        };
 
         // let c = quote!{ some_algo(arg1) };
         // let b = c.into();
