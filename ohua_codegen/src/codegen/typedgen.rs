@@ -281,6 +281,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
                                                             .filter(|(arc, _ )| filter_env_arc(&arc))
                                                             .map(|(_,t)| t.clone())
                                                             .collect();
+            let num_input_arcs = drain_arcs.len();
             let drain_inputs = quote!{ #(#drain_arcs.recv()?;)* };
 
             let call_args: Vec<TokenStream> = zipped_in_arcs.iter()
@@ -294,7 +295,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
             let call_code = quote!{ #sf( #(#call_args),* ) };
             let sfn_code = quote!{ let #r = #call_code; #send };
 
-            if orig_in_arcs.len() > 0 {
+            if num_input_arcs > 0 {
                 match &ctrl_port {
                     None => quote!{ loop { #sfn_code } },
                     Some(p) => quote!{ loop { if #p.recv()? { #sfn_code} else { #drain_inputs } } },
@@ -311,7 +312,7 @@ pub fn generate_sfns(compiled: &OhuaData, algo_call_args: &Punctuated<Expr, Toke
         .collect();
 
     quote!{
-        let mut tasks: Vec<Box<Fn() -> Result<(), RecvError> + Send + 'static>> = Vec::new();
+        let mut tasks: Vec<Box<Fn() -> Result<(), RunError> + Send + 'static>> = Vec::new();
         #(tasks.push(Box::new(move || { #sf_codes })); )*
     }
 }
@@ -403,8 +404,8 @@ pub fn generate_code(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr,
             #op_code
 
             run_tasks(tasks);
-            result_rcv.recv()?;
-        }
+            result_rcv.recv().unwrap();
+        };
     }
 }
 
@@ -489,7 +490,7 @@ use super::*;
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: { Receiver , RecvError , Sender } ; use ohua_runtime :: * ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use ohua_runtime :: * ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -503,7 +504,7 @@ use super::*;
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) ? } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . send ( r ) ? ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . send ( r ) ? ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
@@ -591,6 +592,6 @@ use super::*;
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RecvError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { loop { let r = some_sfn ( arg1 ) ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( arg1 ) ; ; Ok ( ( ) ) } ) ) ;" == generated_sfns);
     }
 }
