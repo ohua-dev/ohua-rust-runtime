@@ -1,6 +1,9 @@
+#![feature(fnbox)]
 use std::marker::Send;
 use std::sync::mpsc::{RecvError, SendError};
 use std::thread;
+
+use std::boxed::FnBox;
 
 pub enum RunError {
     SendFailed,
@@ -19,7 +22,7 @@ impl From<RecvError> for RunError {
     }
 }
 
-pub fn run_tasks(mut tasks: Vec<Box<Fn() -> Result<(), RunError> + Send + 'static>>) -> () {
+pub fn run_tasks(mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'static>>) -> () {
     let mut handles = Vec::with_capacity(tasks.len());
     for task in tasks.drain(..) {
         handles.push(thread::spawn(move || {

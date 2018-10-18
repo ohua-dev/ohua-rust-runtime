@@ -328,7 +328,7 @@ pub fn generate_sfns(
         .collect();
 
     quote!{
-        let mut tasks: Vec<Box<Fn() -> Result<(), RunError> + Send + 'static>> = Vec::new();
+        let mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'static>> = Vec::new();
         #(tasks.push(Box::new(move || { #sf_codes })); )*
     }
 }
@@ -395,6 +395,7 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
 
     quote!{
         use std::sync::mpsc::{Receiver, Sender};
+        use std::boxed::FnBox;
         use ohua_runtime::*;
 
         #(#app_namespaces)*
@@ -523,7 +524,7 @@ mod tests {
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . send ( r ) ? ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < FnBox ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . send ( r ) ? ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
@@ -609,6 +610,6 @@ mod tests {
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < Fn ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( arg1 ) ; ; Ok ( ( ) ) } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < FnBox ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( arg1 ) ; ; Ok ( ( ) ) } ) ) ;" == generated_sfns);
     }
 }
