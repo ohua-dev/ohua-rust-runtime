@@ -522,7 +522,7 @@ mod tests {
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use ohua_runtime :: * ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);

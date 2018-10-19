@@ -43,7 +43,16 @@ pub fn move_in_one(mut house: House, mut humans: Vec<Human>) -> (House, Vec<Huma
     (house, humans)
 }
 
-pub fn house_information(house: House) {
+pub fn move_in_one_more(bundle_input: (House, Vec<Human>)) -> (House, Vec<Human>) {
+    let (mut house, mut humans) = bundle_input;
+    if let Some(human) = humans.pop() {
+        house.inhabitants.push(human);
+    }
+    (house, humans)
+}
+
+pub fn house_information(bundle_input: (House, Vec<Human>)) {
+    let house = bundle_input.0;
     println!("Address: {}, Rooms: {}", house.get_address(), house.rooms);
     let mut inhabitants = String::new();
     for inh in house.inhabitants {
@@ -52,7 +61,8 @@ pub fn house_information(house: House) {
     println!("Inhabited by: {}", inhabitants)
 }
 
-pub fn evict_one(mut house: House) -> House {
+pub fn evict_one(bundle_input: (House, Vec<Human>)) -> House {
+    let mut house = bundle_input.0;
     let _ = house.inhabitants.pop();
     house
 }
