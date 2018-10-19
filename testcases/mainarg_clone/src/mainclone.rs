@@ -1,9 +1,9 @@
-pub fn calc(arg1: i32, arg2: i32) -> i32 {
-    println!("Input: {} and {}", arg1, arg2);
-    arg1 + arg2
+pub fn concat(mut arg1: String, arg2: String) -> String {
+    arg1 += &arg2;
+    arg1
 }
 
-pub fn double(arg: i32) -> i32 {
-    println!("Intermediate: {}", arg);
-    arg * 2
+pub fn append_foo(mut arg: String) -> String {
+    arg += " foo";
+    arg
 }
