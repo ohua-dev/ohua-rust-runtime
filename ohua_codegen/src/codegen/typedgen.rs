@@ -1,5 +1,5 @@
 #![allow(unused_doc_comments)]
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{Receiver, Sender};
 
 use ohua_types::ValueType::{EnvironmentVal, LocalVal};
@@ -269,11 +269,23 @@ pub fn generate_sfns(
         });
     let sf_codes: Vec<TokenStream> = sfns
         .map(|op| {
-            let in_arcs =
+            let mut in_arcs =
                 generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), algo_call_args);
             let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs));
-            let zipped_in_arcs: Vec<(&&Arc, &TokenStream)> =
-                orig_in_arcs.iter().zip(in_arcs.iter()).collect();
+            let mut zipped_in_arcs: Vec<(&&Arc, TokenStream)> =
+                orig_in_arcs.iter().zip(in_arcs.drain(..)).collect();
+
+            // determine if cloning is necessary and apply it if so
+            let mut seen_env_arcs = HashMap::new();
+            for pos in 0..zipped_in_arcs.len() {
+                if let EnvironmentVal(x) = zipped_in_arcs[pos].0.source.val {
+                    if let Some(old_pos) = seen_env_arcs.insert(x, pos) {
+                        // the value is present, clone the old one
+                        let old_ident = zipped_in_arcs[old_pos].1.clone();
+                        zipped_in_arcs[old_pos].1 = quote!{ #old_ident.clone() };
+                    }
+                }
+            }
 
             let out_arcs = generate_out_arcs_vec(
                 &op.operatorId,
@@ -293,7 +305,7 @@ pub fn generate_sfns(
 
             let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
 
-            let drain_arcs: Vec<&TokenStream> = zipped_in_arcs
+            let drain_arcs: Vec<TokenStream> = zipped_in_arcs
                 .iter()
                 .filter(|(arc, _)| filter_env_arc(&arc))
                 .map(|(_, t)| t.clone())
