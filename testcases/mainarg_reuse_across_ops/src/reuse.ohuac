@@ -1,0 +1,8 @@
+ns some_ns;
+
+use sf reuse_foo (expand_content, splice_message);
+
+fn main(input: String) -> String {
+    let intermediate = expand_content(input);
+    splice_message(intermediate, input)
+}
