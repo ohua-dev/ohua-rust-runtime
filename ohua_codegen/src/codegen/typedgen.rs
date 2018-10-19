@@ -277,6 +277,7 @@ pub fn generate_sfns(
 
             // determine if cloning is necessary and apply it if so
             let mut seen_env_arcs = HashMap::new();
+            let mut seen_local_arc = false;
             for pos in 0..zipped_in_arcs.len() {
                 if let EnvironmentVal(x) = zipped_in_arcs[pos].0.source.val {
                     if let Some(old_pos) = seen_env_arcs.insert(x, pos) {
@@ -284,6 +285,16 @@ pub fn generate_sfns(
                         let old_ident = zipped_in_arcs[old_pos].1.clone();
                         zipped_in_arcs[old_pos].1 = quote!{ #old_ident.clone() };
                     }
+                } else {
+                    seen_local_arc = true;
+                }
+            }
+
+            // necessary workaround to add cloning for non-"env arc only" operators where they are used in a loop
+            if seen_local_arc {
+                for (_, index) in seen_env_arcs {
+                    let old_ident = zipped_in_arcs[index].1.clone();
+                    zipped_in_arcs[index].1 = quote!{ #old_ident.clone() };
                 }
             }
 
