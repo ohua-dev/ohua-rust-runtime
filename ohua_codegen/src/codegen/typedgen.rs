@@ -436,8 +436,8 @@ pub fn generate_code(
             #op_code
 
             run_tasks(tasks);
-            result_rcv.recv().unwrap();
-        };
+            result_rcv.recv().unwrap()
+        }
     }
 }
 

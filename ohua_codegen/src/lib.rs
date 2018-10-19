@@ -22,15 +22,15 @@ mod codegen;
 mod errors;
 mod ohua_types;
 mod ohuac;
-mod type_extract;
 mod parse;
+mod type_extract;
 
-use parse::parse_ohua_call;
 use codegen::generate_ohua_runtime;
 use codegen::typedgen::*;
 use errors::*;
 use ohua_types::OhuaData;
 use ohuac::OhuaProduction;
+use parse::parse_ohua_call;
 use std::env::current_dir;
 use std::error::Error;
 use std::fs::{self, File};
@@ -40,16 +40,17 @@ use tempdir::TempDir;
 use type_extract::TypeKnowledgeBase;
 
 use self::proc_macro::TokenStream;
+use syn::export::ToTokens;
 use syn::punctuated::Punctuated;
-use syn::{Expr, ExprCall, ExprPath, Stmt};
+use syn::{Expr, ExprCall, ExprPath, Local, Stmt};
 
 /*
  * #[ohua] name::space::algo(arg1, arg2);
  */
 #[proc_macro_attribute]
 pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
-
-    let (algo_name, algo_args) = parse_ohua_call(args, input);
+    let (algo_info, assignment) = parse_ohua_call(args, input);
+    let (algo_name, algo_args) = algo_info;
 
     // after the initial parsing/verification, the compilation can begin
     // create a temporary directory
@@ -94,7 +95,14 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
 
     println!("{}", final_code.clone().to_string());
     // Hand the output tokens back to the compil)er
-    final_code.into() // this converts from proc_macro2::TokenStream to proc_macro::TokenStream
+    if let Some(mut local) = assignment {
+        local.init = Some((syn::token::Eq::default(), syn::parse2(final_code).unwrap()));
+        let x = local.into_token_stream().into();
+        println!("\n\n---\n{}", x);
+        x
+    } else {
+        final_code.into() // this converts from proc_macro2::TokenStream to proc_macro::TokenStream
+    }
 }
 
 fn locate_ohuac_file(path: syn::ExprPath) -> Option<PathBuf> {
