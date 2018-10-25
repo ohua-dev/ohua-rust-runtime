@@ -93,7 +93,7 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     let final_code = generate_code(&ohua_data, &algo_args);
     println!(" Done!");
 
-    println!("{}", final_code.clone().to_string());
+    println!("{}", final_code.clone().to_string().replace(";", ";\n"));
     // Hand the output tokens back to the compil)er
     if let Some(mut local) = assignment {
         local.init = Some((syn::token::Eq::default(), syn::parse2(final_code).unwrap()));

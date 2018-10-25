@@ -5,6 +5,8 @@ use std::thread;
 
 use std::boxed::FnBox;
 
+pub mod lang;
+
 pub enum RunError {
     SendFailed,
     RecvFailed,
