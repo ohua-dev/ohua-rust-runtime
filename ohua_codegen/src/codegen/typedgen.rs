@@ -425,10 +425,53 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     }
 }
 
+fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
+    let mut scope_functions: Vec<TokenStream> = Vec::new();
+    for operator in &mut compiled_algo.graph.operators {
+        if operator.operatorType.qbName == "scope"
+            && operator.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+        {
+            // remove the namespace prefix, as we will generate this function
+            operator.operatorType.qbNamespace = Vec::with_capacity(0);
+
+            // generate the appropriate scope function
+            let fn_name = format!("scope{n}", n = scope_functions.len());
+
+            let param_input_iterator =
+                0..get_num_inputs(&operator.operatorId, &compiled_algo.graph.arcs);
+
+            let type_params: Vec<String> =
+                param_input_iterator.clone().map(|x| format!("T{}", x)).collect();
+            let params: Vec<String> = param_input_iterator
+                .map(|x| format!("t{n}: T{n}", n = x))
+                .collect();
+            let type_params_ret = type_params.clone();
+            let params_ret = params.clone();
+
+            // generate the actual scope function
+            let scope_fn = quote!{
+                fn <#(#type_params),*>#fn_name(#(#params),*) -> (#(type_params_ret),*) {
+                    (#(#params_ret),*)
+                }
+            };
+
+            // add it to the structure
+            scope_functions.push(scope_fn);
+            operator.operatorType.qbName = fn_name;
+        }
+    }
+    quote!{
+        #(
+            #scope_functions
+        )*
+    }
+}
+
 pub fn generate_code(
-    compiled_algo: &OhuaData,
+    compiled_algo: &mut OhuaData,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> TokenStream {
+    let scope_fn_code = handle_scope_operator(compiled_algo);
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
     let op_code = generate_sfns(&compiled_algo, algo_call_args);
@@ -440,6 +483,8 @@ pub fn generate_code(
     quote!{
         {
             #header_code
+
+            #scope_fn_code
 
             #arc_code
             let (result_snd, result_rcv) = std::sync::mpsc::channel();

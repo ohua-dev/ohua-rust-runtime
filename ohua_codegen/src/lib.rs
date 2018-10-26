@@ -86,11 +86,12 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     // Phase 4: Run the codegen
     print!("[Phase 4] Generating Code...");
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
-    let ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
-    println!("{}", &ohua_data);
+    let mut ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
+    alter_ohua_ns_imports(&mut ohua_data);
+    // println!("{}", &ohua_data);
 
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
-    let final_code = generate_code(&ohua_data, &algo_args);
+    let final_code = generate_code(&mut ohua_data, &algo_args);
     println!(" Done!");
 
     println!("{}", final_code.clone().to_string().replace(";", ";\n"));
@@ -137,58 +138,10 @@ fn locate_ohuac_file(path: syn::ExprPath) -> Option<PathBuf> {
     }
 }
 
-// TODO: To be retired
-// /// Convenience wrapper to run the build process by calling a single function. For easy use from within a `build.rs` file.
-// fn run_ohua_build() {
-//     let tmp_dir = match TempDir::new("ohuac-rs") {
-//         Ok(dir) => dir.into_path(),
-//         Err(io_err) => panic!("Unable to create a temp directory. {}", io_err),
-//     };
-
-//     // search for all ohuac files in the project folder
-//     // NOTE: `current_dir()` returns the project dir, from where cargo operates!
-//     let sources =
-//         find_ohuac_files(current_dir().unwrap(), vec![]).expect("Failed to locate `.ohuac` files.");
-//     if sources.is_empty() {
-//         return;
-//     }
-
-//     // TODO: 4-Step Pipeline
-//     /* 1. Run `ohuac` w/o optimizations
-//      * 2. Run Type extraction
-//      * 3. Run `ohuac` w/ optimizations (not yet implemented)
-//      * 4. Run the code generation
-//      */
-
-//     // Phase 1: Run `ohuac` (there are no optimizations for the moment)
-//     let mut processed_algos = ohuac::generate_dfgs(sources, tmp_dir.clone());
-
-//     // Phase 2: Run the type extraction
-//     let mut algo_info: Vec<(OhuaProduction, TypeKnowledgeBase)> =
-//         Vec::with_capacity(processed_algos.len());
-//     for algo in processed_algos.drain(..) {
-//         let type_infos = match TypeKnowledgeBase::generate_from(&algo) {
-//             Ok(info) => info,
-//             Err(e) => panic!("{}", e),
-//         };
-
-//         println!("Knowledge Base: {:#?}", type_infos);
-//         algo_info.push((algo, type_infos));
-//     }
-
-//     // Phase 3: Run `ohuac` w/ optimizations (unimplemented)
-//     // TODO
-
-//     // Phase 4: Run the codegen
-//     let mut target_dir = current_dir().unwrap();
-//     target_dir.push("src/");
-
-//     for &(ref algo, ref info) in &algo_info {
-//         // TODO: Check algos don't occur twice
-//         // TODO: name algo-folders
-//         let algo_target = String::from(target_dir.to_str().unwrap());
-//         if let Err(e) = generate_ohua_runtime(&algo, algo_target, &info) {
-//             panic!("Code generation failed! {}", e.description());
-//         }
-//     }
-// }
+fn alter_ohua_ns_imports(data: &mut OhuaData) {
+    for op in &mut data.graph.operators {
+        if op.operatorType.qbNamespace == vec!["ohua", "lang"] {
+            op.operatorType.qbNamespace = vec!["ohua_runtime".into(), "lang".into()];
+        }
+    }
+}

@@ -39,66 +39,8 @@ pub fn select<T>(
     out.send(branch.recv().unwrap()).unwrap();
 }
 
-// that's also a stateful function -> in fact this thing needs variadic arguments and therefore needs to be a macro
-// FIXME this probably wants to become a procedural macro! (note that proc macros can also have the form 'scope!()')
-// macro_rules! scope {
-//     // FIXME this is not as trivial as it seems because we need different type parameters! and therefore need a recursive macro!
-//     ( $($input),+ ) => {
-//         pub fn <$(T),+>scope($($input),+) -> ($(T),+) {
-//             ($($input),+)
-//         }
-//     }
-// }
-
-/*
-#[proc_macro]
-pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
-    // FIXME refactor this code with the one in lib.rs!
-
-    // Parse the input tokens into a syntax tree, extract necessary information
-    let ast: Stmt = match syn::parse(input) {
-        Ok(ast) => ast,
-        Err(e) => panic!("{}", e),
-    };
-
-    let expression: Expr = match ast {
-        Stmt::Expr(e) => e,
-        Stmt::Semi(e, _) => e,
-        _ => panic!("Invariant broken: 'scope!' not an expr!"),
-    };
-
-    let call: ExprCall = if let Expr::Call(fn_call) = expression {
-        fn_call
-    } else {
-        panic!("Invariant broken: 'scope!' not a function call!");
-    };
-
-    if !args.is_empty() {
-        panic!("The #[ohua] macro does currently not support macro arguments.");
-    }
-
-    let algo_name: ExprPath = match *algo_call.func {
-        Expr::Path(path) => path,
-        _ => panic!("Malformed algorithm invocation. Expected a qualified path."),
-    };
-    let algo_args: Punctuated<Expr, Token![,]> = algo_call.args; // https://docs.serde.rs/syn/punctuated/index.html
-
-
-    // TODO
-    let type_params = unimplemented!();
-    let type_params_ret = type_params.clone(); // can't reference var more than once in quasi-quote.
-    let params = unimplemented!();
-    let params_ret = params_ret.clone(); // can't reference var more than once in quasi-quote.
-
-    // build the list of type parameters: T0, T1, ...
-    quote!{
-        pub fn <#(#type_params),+>scope(#(#params),+) -> (#(type_params_ret),+) {
-            (#(#params_ret),+)
-        }
-    }
-} */
-
-pub fn one_to_n<T: Clone>(n: Receiver<i32>, val: Receiver<T>, out: Sender<T>) -> () {
+#[allow(non_snake_case)]
+pub fn oneToN<T: Clone>(n: Receiver<i32>, val: Receiver<T>, out: Sender<T>) -> () {
     // TODO 2 more efficient implementations exist:
     //      1. send the key and the value once -> requires special input ports that are sensitive to that.
     //      2. send a batch -> requires input ports to understand the concept of a batch.
