@@ -472,18 +472,10 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
     for op in &mut compiled_algo.graph.operators {
         if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] {
             match op.operatorType.qbName.as_str() {
-                "oneToN" => {
-                    op.operatorType.op_type = OpType::OhuaOperator("oneToN".into());
-                    for arc in compiled_algo.graph.arcs.iter_mut() {
-                        if let ValueType::LocalVal(ref mut src) = arc.source.val {
-                            if src.operator == op.operatorId {
-                                src.index = 0;
-                            }
-                        }
-                    }
-                },
-                "smapFun" => {
-                    op.operatorType.op_type = OpType::OhuaOperator("smapFun".into());
+                "oneToN" |
+                "smapFun" |
+                 "collect" => {
+                    op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
                     for arc in compiled_algo.graph.arcs.iter_mut() {
                         if let ValueType::LocalVal(ref mut src) = arc.source.val {
                             if src.operator == op.operatorId {
@@ -507,7 +499,8 @@ pub fn generate_code(
     change_operator_types(compiled_algo);
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
-    let op_code = generate_sfns(&compiled_algo, algo_call_args);
+    let sf_code = generate_sfns(&compiled_algo, algo_call_args);
+    let op_code = generate_ops(&compiled_algo);
 
     // Macro hygiene: I can create a variable here and use it throughout the whole call-site of this
     // macro because quote! has Span:call_site() -> call site = call site of the macro!
@@ -521,6 +514,8 @@ pub fn generate_code(
 
             #arc_code
             let (result_snd, result_rcv) = std::sync::mpsc::channel();
+
+            #sf_code
 
             #op_code
 
