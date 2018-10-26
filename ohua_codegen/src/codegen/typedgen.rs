@@ -236,7 +236,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
         .collect();
 
     quote!{
-        #(tasks.push(|| { #op_codes }); )*
+        #(tasks.push(Box::new(move || { #op_codes })); )*
     }
 }
 
