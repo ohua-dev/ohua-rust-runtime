@@ -472,8 +472,26 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
     for op in &mut compiled_algo.graph.operators {
         if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] {
             match op.operatorType.qbName.as_str() {
-                "oneToN" => op.operatorType.op_type = OpType::OhuaOperator("oneToN".into()),
-                "smapFun" => op.operatorType.op_type = OpType::OhuaOperator("smapFun".into()),
+                "oneToN" => {
+                    op.operatorType.op_type = OpType::OhuaOperator("oneToN".into());
+                    for arc in compiled_algo.graph.arcs.iter_mut() {
+                        if let ValueType::LocalVal(ref mut src) = arc.source.val {
+                            if src.operator == op.operatorId {
+                                src.index = 0;
+                            }
+                        }
+                    }
+                },
+                "smapFun" => {
+                    op.operatorType.op_type = OpType::OhuaOperator("smapFun".into());
+                    for arc in compiled_algo.graph.arcs.iter_mut() {
+                        if let ValueType::LocalVal(ref mut src) = arc.source.val {
+                            if src.operator == op.operatorId {
+                                src.index = 0;
+                            }
+                        }
+                    }
+                },
                 _ => ()
             }
         }
