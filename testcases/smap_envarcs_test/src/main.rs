@@ -8,8 +8,14 @@ mod smapping;
 use ohua_codegen::ohua;
 
 fn main() {
+    let inputs: Vec<String> = vec![
+        "I hate".into(),
+        "Why are there everywhere".into(),
+        "there is a huge pile of".into(),
+    ];
+
     #[ohua]
-    let x = smap_test();
+    let x = smap_test(inputs);
 
     println!("Received: {:?}", x);
 }
