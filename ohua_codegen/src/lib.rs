@@ -42,7 +42,7 @@ use type_extract::TypeKnowledgeBase;
 use self::proc_macro::TokenStream;
 use syn::export::ToTokens;
 use syn::punctuated::Punctuated;
-use syn::{Expr, ExprCall, ExprPath, Local, Stmt};
+use syn::{Expr, ExprBlock, ExprCall, ExprPath, Local, Stmt};
 
 /*
  * #[ohua] name::space::algo(arg1, arg2);
@@ -102,7 +102,8 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
         println!("\n\n---\n{}", x);
         x
     } else {
-        final_code.into() // this converts from proc_macro2::TokenStream to proc_macro::TokenStream
+        let exp = syn::parse2(final_code).unwrap();
+        syn::Stmt::Semi(exp, syn::token::Semi::default()).into_token_stream().into()
     }
 }
 
