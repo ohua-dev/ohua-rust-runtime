@@ -467,11 +467,26 @@ fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
     }
 }
 
+/// Change the operator types for `smapFun` and `oneToN` from SfnWrapper to OhuaOperator
+fn change_operator_types(compiled_algo: &mut OhuaData) {
+    for op in &mut compiled_algo.graph.operators {
+        if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] {
+            match op.operatorType.qbName.as_str() {
+                "oneToN" => op.operatorType.op_type = OpType::OhuaOperator("oneToN".into()),
+                "smapFun" => op.operatorType.op_type = OpType::OhuaOperator("smapFun".into()),
+                _ => ()
+            }
+        }
+    }
+}
+
 pub fn generate_code(
     compiled_algo: &mut OhuaData,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> TokenStream {
     let scope_fn_code = handle_scope_operator(compiled_algo);
+    // change operator type for `smapFun` and `oneToN`
+    change_operator_types(compiled_algo);
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
     let op_code = generate_sfns(&compiled_algo, algo_call_args);

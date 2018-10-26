@@ -53,7 +53,7 @@ pub fn oneToN<T: Clone>(n: Receiver<i32>, val: Receiver<T>, out: Sender<T>) -> (
 }
 
 // that's actually a stateful function
-pub fn size<T>(data: &Vec<T>) -> usize {
+pub fn size<T>(data: Vec<T>) -> usize {
     data.len()
 }
 
