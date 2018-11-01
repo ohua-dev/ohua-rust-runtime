@@ -210,8 +210,13 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
                 &(compiled.graph.operators),
             );
 
-            let c = out_arcs.iter().map(ToTokens::into_token_stream);
-            call_args.extend(c);
+            if out_arcs.len() > 0 {
+                let c = out_arcs.iter().map(ToTokens::into_token_stream);
+                call_args.extend(c);
+            } else if op.operatorId == compiled.graph.return_arc.operator {
+                // the return_arc is the output port
+                call_args.push(quote!{ result_snd });
+            }
 
             let op_name = get_call_reference(&op.operatorType);
 
