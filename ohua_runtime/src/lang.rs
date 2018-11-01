@@ -13,18 +13,12 @@ pub fn smapFun<T: Send>(inp: &Receiver<Vec<T>>, out: &Sender<T>) -> Result<(), R
 
 // a fully explicit operator version
 pub fn collect<T: Send>(n: &Receiver<usize>, data: &Receiver<T>, out: &Sender<Vec<T>>) -> Result<(), RunError> {
-    match n.recv() {
-        Err(_) => {
-            // channels are closed by Rust itself
-        }
-        Ok(num) => {
-            let mut buffered = Vec::new();
-            for _x in 0..num {
-                buffered.push(data.recv()?);
-            }
-            out.send(buffered)?;
-        }
+    let num = n.recv()?;
+    let mut buffered = Vec::new();
+    for _x in 0..num {
+        buffered.push(data.recv()?);
     }
+    out.send(buffered)?;
     Ok(())
 }
 
