@@ -228,7 +228,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
                         // FIXME do we really have a valid design to handle control input for operators?
                         //       how do we drain the inputs if the op dequeues n packets from some input channel???
                         // if #ctrl.recv().unboxed() {
-                        #op_name(#(&#call_args),*);
+                        #op_name(#(&#call_args),*)?;
                         // } else {
                         //     // skip
                         // }
@@ -455,8 +455,8 @@ fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
 
             // generate the actual scope function
             let scope_fn = quote!{
-                fn <#(#type_params),*>#fn_name(#(#params),*) -> (#(type_params_ret),*) {
-                    (#(#params_ret),*)
+                fn <#(#type_params),*>#fn_name(#(#params),*) -> Result<(#(type_params_ret),*), RunError> {
+                    Ok((#(#params_ret),*))
                 }
             };
 
