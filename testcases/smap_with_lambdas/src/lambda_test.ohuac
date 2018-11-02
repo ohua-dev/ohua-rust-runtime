@@ -6,7 +6,7 @@ fn main() -> Vec<i32> {
     let x = generate_value();
     let y = generate_data();
 
-    let f = |d| calculate(d, x);
+    let f = fn(d) {calculate(d, x)};
 
     for num in y {
         f(num)
