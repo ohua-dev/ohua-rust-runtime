@@ -3,5 +3,6 @@ testcases/**/Cargo.lock
 testcases/**/*.ohuao
 testcases/**/*.type-dump
 target/
+.vscode/
 **/*.rs.bk
 Cargo.lock
