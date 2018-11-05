@@ -4,7 +4,6 @@ extern crate ohua_runtime;
 
 mod house;
 
-use house::{EmotionalState, House, Human};
 use ohua_codegen::ohua;
 
 fn main() {

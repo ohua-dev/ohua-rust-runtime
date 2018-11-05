@@ -1,4 +1,4 @@
-pub fn expand_content(mut a: String) -> String {
+pub fn expand_content(a: String) -> String {
     a + " over the hill"
 }
 

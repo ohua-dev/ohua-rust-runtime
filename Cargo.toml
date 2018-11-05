@@ -4,3 +4,5 @@ members = [
     "ohua_codegen",
     "ohua_runtime",
 ]
+
+exclude = ["testcases/"]

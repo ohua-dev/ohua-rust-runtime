@@ -37,7 +37,7 @@ fn main() {
     };
 
     #[ohua]
-    let new_house = unused_arguments(home, String::from("1323 2nd Street"), humans);
+    let new_house = custom_types(home, String::from("1323 2nd Street"), humans);
 
     println!("We now got {} inhabitants!", new_house.inhabitants.len());
 }
