@@ -1,3 +1,11 @@
+pub fn get_ctrl_input() -> bool {
+    true
+}
+
+pub fn get_data() -> String {
+    String::from("executed: ")
+}
+
 pub fn modify_string_positive(a: String) -> String {
     a + "yes"
 }
