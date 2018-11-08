@@ -510,6 +510,9 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
                         }
                     }
                 },
+                "bool" | "select" => {
+                    op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
+                },
                 _ => ()
             }
         }

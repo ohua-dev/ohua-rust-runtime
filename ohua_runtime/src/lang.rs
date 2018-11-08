@@ -65,15 +65,21 @@ pub fn id<T>(data: T) -> T {
 // issue in core: https://github.com/ohua-dev/ohua-core/issues/21
 // I'm not sure whether this actually works with a stateful function
 // because it requires destructuring!
-pub fn bool(b: bool) -> (bool, bool) {
-    (b, !b)
-}
+// pub fn bool(b: bool) -> (bool, bool) {
+//     (b, !b)
+// }
 
 // Here is the operator, just to make sure
 // TODO: rename to 'bool' when deciding for this.
-pub fn bool_op(b: &Receiver<bool>, pos: &Sender<bool>, neg: &Sender<bool>) -> Result<(), RunError> {
+pub fn bool(
+    b: &Receiver<bool>,
+    pos: &Sender<bool>,
+    neg: &Sender<bool>,
+    collector: &Sender<bool>,
+) -> Result<(), RunError> {
     let v = b.recv()?;
     pos.send(v)?;
     neg.send(!v)?;
+    collector.send(v)?;
     Ok(())
 }
