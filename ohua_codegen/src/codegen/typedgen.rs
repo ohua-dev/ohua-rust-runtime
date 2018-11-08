@@ -391,6 +391,10 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>, op: &i32, final_op: &i32) -> T
 fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
     let mut namespaces = BTreeSet::new();
     for op in operators {
+        // ignore imports in the root
+        if op.operatorType.qbNamespace.is_empty() {
+            continue;
+        }
         let mut r = op.operatorType.qbNamespace.to_vec();
         r.push(op.operatorType.qbName.to_string());
 
@@ -440,29 +444,46 @@ fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
             operator.operatorType.qbNamespace = Vec::with_capacity(0);
 
             // generate the appropriate scope function
-            let fn_name = format!("scope{n}", n = scope_functions.len());
+            let func_name = format!("scope{n}", n = scope_functions.len());
+            let fn_name = Ident::new(&func_name, Span::call_site());
 
             let param_input_iterator =
                 0..get_num_inputs(&operator.operatorId, &compiled_algo.graph.arcs);
 
-            let type_params: Vec<String> =
-                param_input_iterator.clone().map(|x| format!("T{}", x)).collect();
-            let params: Vec<String> = param_input_iterator
-                .map(|x| format!("t{n}: T{n}", n = x))
+            let type_params: Vec<Ident> =
+                param_input_iterator.clone().map(|x| Ident::new(&format!("T{}", x), Span::call_site())).collect();
+
+            let params_ret: Vec<Ident> = param_input_iterator
+                .map(|x| Ident::new(&format!("t{n}", n = x), Span::call_site()))
                 .collect();
+
+            let mut params_ret2 = params_ret.clone();
+            let mut type_params2 = type_params.clone();
+            let params: Vec<TokenStream> = params_ret2.drain(..).zip(type_params2.drain(..)).map(|(id, ty)| quote!{#id: #ty}).collect();
+
+            // let params: Vec<Ident> = param_input_iterator.clone()
+            //     .map(|x| Ident::new(&format!("t{n}: T{n}", n = x), Span::call_site()))
+            //     .collect();
             let type_params_ret = type_params.clone();
-            let params_ret = params.clone();
 
             // generate the actual scope function
             let scope_fn = quote!{
-                fn <#(#type_params),*>#fn_name(#(#params),*) -> Result<(#(type_params_ret),*), RunError> {
-                    Ok((#(#params_ret),*))
+                fn #fn_name<#(#type_params),*>(#(#params),*) -> (#(#type_params_ret),*) {
+                    (#(#params_ret),*)
                 }
             };
 
             // add it to the structure
             scope_functions.push(scope_fn);
-            operator.operatorType.qbName = fn_name;
+            operator.operatorType.qbName = func_name;
+
+            for arc in compiled_algo.graph.arcs.iter_mut() {
+                if let ValueType::LocalVal(ref mut src) = arc.source.val {
+                    if src.operator == operator.operatorId {
+                        src.index = -1;
+                    }
+                }
+            }
         }
     }
     quote!{

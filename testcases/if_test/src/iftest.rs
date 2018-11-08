@@ -2,7 +2,7 @@ pub fn get_ctrl_input() -> bool {
     true
 }
 
-pub fn get_data() -> String {
+pub fn get_input() -> String {
     String::from("executed: ")
 }
 
