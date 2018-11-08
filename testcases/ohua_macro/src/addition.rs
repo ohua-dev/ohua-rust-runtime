@@ -7,6 +7,6 @@ pub fn produce() -> u32 {
     42
 }
 
-pub fn consume(v:u32) {
+pub fn consume(_v: u32) {
     println!("consuming");
 }

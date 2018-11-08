@@ -141,9 +141,14 @@ fn generate_in_arcs_vec(
     arcs: &Vec<Arc>,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> Vec<TokenStream> {
-    // TODO handle control arcs. (control arc := target_idx = -1)
     let mut in_arcs = get_in_arcs(op, arcs);
     in_arcs.sort_by_key(|a| a.target.index);
+
+    // ignore context arcs
+    if in_arcs.len() > 1 && in_arcs[0].target.index == -1 {
+        in_arcs.remove(0);
+    }
+
     in_arcs
         .iter()
         .map(|a| match a.source.val {
@@ -342,7 +347,7 @@ pub fn generate_sfns(
             if num_input_arcs > 0 {
                 match &ctrl_port {
                     None => quote!{ loop { #sfn_code } },
-                    Some(p) => quote!{ loop { if #p.recv()? { #sfn_code} else { #drain_inputs } } },
+                    Some(p) => quote!{ loop { if #p.recv()? { #sfn_code } else { #drain_inputs } } },
                 }
             } else {
                 match &ctrl_port {
@@ -447,8 +452,9 @@ fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
             let func_name = format!("scope{n}", n = scope_functions.len());
             let fn_name = Ident::new(&func_name, Span::call_site());
 
+            // num_inputs minus one, because we do not want the control arc as input
             let param_input_iterator =
-                0..get_num_inputs(&operator.operatorId, &compiled_algo.graph.arcs);
+                0..(get_num_inputs(&operator.operatorId, &compiled_algo.graph.arcs) - 1);
 
             let type_params: Vec<Ident> =
                 param_input_iterator.clone().map(|x| Ident::new(&format!("T{}", x), Span::call_site())).collect();
