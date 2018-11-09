@@ -24,11 +24,13 @@ The script assumes every folder contains a valid Cargo project and tries to exec
 
 ## Operator tests
 
-| Test Case                                 | What is tested?                      |
-| ---------                                 | ---------------                      |
-| [`smap_test`](smap_test/)                 | general `smap` functionality         |
-| [`smap_with_lambdas`](smap_with_lambdas/) | using lambda functions inside `smap` |
-| [`smap_with_envarcs`](smap_with_envarcs/) | **TBD**                              |
-| [`if_test`](if_test/)                     | general `if` functionality           |
-| [`if_with_lambdas`](if_with_lambdas/)     | **TBD**                              |
-| [`if_with_envarcs`](if_with_envarcs/)     | **TBD**                              |
+| Test Case                                 | What is tested?                                                     |
+| ---------                                 | ---------------                                                     |
+| [`smap_test`](smap_test/)                 | general `smap` functionality                                        |
+| [`smap_with_lambdas`](smap_with_lambdas/) | using lambda functions inside `smap`                                |
+| [`smap_with_envarcs`](smap_with_envarcs/) | using environment values in `smap`                                  |
+| [`if_test`](if_test/)                     | general `if` functionality                                          |
+| [`if_with_lambdas`](if_with_lambdas/)     | using lambda functions inside `if`                                  |
+| [`if_with_envarcs`](if_with_envarcs/)     | using environment values in `if` (either ctrl input or in a branch) |
+| [`if_in_if`](if_in_if/)                   | are nested `if`s working?                                           |
+| [`smap_in_if`](smap_in_if/)               | `smap` nested in `if`                                               |

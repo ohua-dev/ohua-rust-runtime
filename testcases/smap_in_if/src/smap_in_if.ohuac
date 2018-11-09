@@ -1,0 +1,18 @@
+ns some_ns;
+
+use sf smap_supplement (gen_input, get_ctrl_input, printout, splice);
+
+fn main() -> Vec<String> {
+    let ctrl = get_ctrl_input();
+    let input = gen_input();
+
+    if (ctrl) {
+        for i in input {
+            let s = splice(i);
+            printout(s);
+            s
+        }
+    } else {
+        input
+    }
+}

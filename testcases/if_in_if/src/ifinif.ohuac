@@ -1,0 +1,19 @@
+ns some_ns;
+
+use sf iftest (modify_string_positive, modify_string_negative, get_ctrl_input, get_another_ctrl_input, get_input);
+
+fn main() -> String {
+    let ctrl = get_ctrl_input();
+    let another_ctrl = get_another_ctrl_input();
+    let inp = get_input();
+
+    if (ctrl) {
+        if (another_ctrl) {
+            modify_string_positive(inp)
+        } else {
+            modify_string_negative(inp)
+        }
+    } else {
+        inp
+    }
+}
