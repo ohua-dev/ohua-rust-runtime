@@ -21,6 +21,8 @@ The script assumes every folder contains a valid Cargo project and tries to exec
 | [`mainargs`](mainargs/)                                   | Do arguments to the algorithm (read: envarcs) work in general? Are the arguments moved to the correct threads?                                            |
 | [`mainargs_clone`](mainargs_clone/)                       | Is data from environment arcs cloned correctly if necessary?                                                                                              |
 | [`mainargs_reuse_across_ops`](mainargs_reuse_across_ops/) | Can we put (cloned) envarc data into different threads or does that pose a problem to thread safety?                                                      |
+| [`namespaces`](namespaces/)                               | Algorithm addressation across modules                                                                                                                     |
+| [`multiple_algos`](multiple_algos/)                       | Running multiple algorithms at once                                                                                                                       |
 
 ## Operator tests
 
