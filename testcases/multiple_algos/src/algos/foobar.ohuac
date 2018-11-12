@@ -1,0 +1,8 @@
+ns some_ns;
+
+use sf addition (produce, consume);
+
+fn main() {
+    let result = produce();
+    consume(result)
+}
