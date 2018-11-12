@@ -144,13 +144,9 @@ fn generate_in_arcs_vec(
     let mut in_arcs = get_in_arcs(op, arcs);
     in_arcs.sort_by_key(|a| a.target.index);
 
-    // ignore context arcs
-    if in_arcs.len() > 1 && in_arcs[0].target.index == -1 {
-        in_arcs.remove(0);
-    }
-
     in_arcs
         .iter()
+        .filter(|arc| arc.target.index != -1)
         .map(|a| match a.source.val {
             EnvironmentVal(_) => generate_envarc_varname(a).into_token_stream(),
             LocalVal(ref arc) => {
@@ -511,7 +507,8 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
             match op.operatorType.qbName.as_str() {
                 "oneToN" |
                 "smapFun" |
-                 "collect" => {
+                "collect" |
+                "select" => {
                     op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
                     for arc in compiled_algo.graph.arcs.iter_mut() {
                         if let ValueType::LocalVal(ref mut src) = arc.source.val {
@@ -521,7 +518,7 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
                         }
                     }
                 },
-                "bool" | "select" => {
+                "bool" => {
                     op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
                 },
                 _ => ()

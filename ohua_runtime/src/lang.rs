@@ -75,11 +75,11 @@ pub fn bool(
     b: &Receiver<bool>,
     pos: &Sender<bool>,
     neg: &Sender<bool>,
-    collector: &Sender<bool>,
+    select_input: &Sender<bool>,
 ) -> Result<(), RunError> {
     let v = b.recv()?;
     pos.send(v)?;
     neg.send(!v)?;
-    collector.send(v)?;
+    select_input.send(v)?;
     Ok(())
 }
