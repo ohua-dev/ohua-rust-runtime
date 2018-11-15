@@ -63,14 +63,6 @@ pub fn id<T>(data: T) -> T {
 
 // reference implementation: https://github.com/ohua-dev/ohua-jvm-runtime/blob/master/src/java/ohua/lang/IfSupport.java
 // issue in core: https://github.com/ohua-dev/ohua-core/issues/21
-// I'm not sure whether this actually works with a stateful function
-// because it requires destructuring!
-// pub fn bool(b: bool) -> (bool, bool) {
-//     (b, !b)
-// }
-
-// Here is the operator, just to make sure
-// TODO: rename to 'bool' when deciding for this.
 pub fn bool(
     b: &Receiver<bool>,
     pos: &Sender<bool>,
@@ -82,4 +74,8 @@ pub fn bool(
     neg.send(!v)?;
     select_input.send(v)?;
     Ok(())
+}
+
+pub fn seq<T: Send>(_: T) -> bool {
+    true
 }

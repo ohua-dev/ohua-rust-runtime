@@ -1,6 +1,7 @@
 testcases/**/ohua_runtime/
 testcases/**/Cargo.lock
 testcases/**/*.ohuao
+testcases/**/*.dot
 testcases/**/*.type-dump
 target/
 .vscode/

@@ -1,0 +1,10 @@
+ns some_ns;
+
+use sf smapping (gen_input, log_message);
+
+fn main() -> Vec<()> {
+    let input = gen_input();
+    for i in input {
+        log_message()
+    }
+}
