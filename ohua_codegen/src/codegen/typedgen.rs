@@ -148,7 +148,11 @@ fn generate_in_arcs_vec(
         .iter()
         .filter(|arc| arc.target.index != -1)
         .map(|a| match a.source.val {
-            EnvironmentVal(_) => generate_envarc_varname(a).into_token_stream(),
+            EnvironmentVal(i) => algo_call_args
+                .iter()
+                .nth(i as usize)
+                .expect(&format!("Invariant broken! {}, {}", i, algo_call_args.len()).to_string())
+                .into_token_stream(),
             LocalVal(ref arc) => {
                 generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
             }
@@ -188,15 +192,6 @@ fn get_call_reference(op_type: &OperatorType) -> Ident {
     // but the Ident can not be ns1::f. so how are these calls parsed then?
     // if this happens then we might have to decompose qbName into its name and the namespace.
     Ident::new(&op_type.qbName, Span::call_site())
-}
-
-fn generate_envarc_varname(arc: &Arc) -> Ident {
-    if let ValueType::EnvironmentVal(num) = arc.source.val {
-        let port = if arc.target.index == -1 { "00".into() } else { format!("{}", arc.target.index) };
-        Ident::new(&format!("env_{}_to_{}{}", num, arc.target.operator, port), Span::call_site())
-    } else {
-        panic!("Expected environment value for envarc variable name generation!");
-    }
 }
 
 pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
@@ -517,39 +512,82 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
                             }
                         }
                     }
-                },
+                }
                 "bool" => {
                     op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
-                },
-                _ => ()
+                }
+                _ => (),
             }
         }
     }
 }
 
-fn generate_envarcs(compiled_algo: &OhuaData, algo_call_args: &Punctuated<Expr, Token![,]>) -> TokenStream {
-    let mut variables: Vec<TokenStream> = Vec::new();
-
-    let mut clone_register = HashMap::new();
-    for arc in &compiled_algo.graph.arcs {
-        if let ValueType::EnvironmentVal(envarc_id) = arc.source.val {
-            let identifier = generate_envarc_varname(arc);
-            let envarc_name = algo_call_args.iter().nth(envarc_id as usize).expect("Too few environment arguments!");
-            variables.push(quote!{
-                let #identifier = #envarc_name
-            });
-
-            // now check if a previous arg would have to be cloned
-            if let Some(old_pos) = clone_register.insert(envarc_id, variables.len() -1) {
-                // the value is present, clone the old one
-                let old_ident = variables[old_pos].clone();
-                variables[old_pos] = quote!{ #old_ident.clone() };
+fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
+    // speacial-casing of zero env-arcs as they still have a mainarity of one.
+    // Hotfix until ohua-dev/ohuac#16 is fixed
+    if compiled_algo
+        .graph
+        .arcs
+        .iter()
+        .filter(|a| {
+            if let ValueType::EnvironmentVal(_) = a.source.val {
+                true
+            } else {
+                false
             }
-        }
+        })
+        .count()
+        == 0
+    {
+        return;
     }
 
-    quote!{
-        #(#variables;)*
+    // find starting number for next operator
+    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().fold(0, |acc, op| {
+        if op.operatorId > acc {
+            op.operatorId
+        } else {
+            acc
+        }
+    }) + 1;
+
+    for i in 0..(compiled_algo.mainArity) {
+        // add a new operator per environment arc
+        compiled_algo.graph.operators.push(Operator {
+            operatorId: new_op_id_base + i,
+            operatorType: OperatorType {
+                qbNamespace: vec!["ohua_runtime".into(), "lang".into()],
+                qbName: "id".into(),
+                func: String::default(),
+                op_type: OpType::SfnWrapper,
+            },
+        });
+
+        // reroute any env-arcs with matching id
+        for arc in &mut compiled_algo.graph.arcs {
+            if let ValueType::EnvironmentVal(env_id) = arc.source.val {
+                if i == env_id {
+                    arc.source = ArcSource {
+                        s_type: "local".into(),
+                        val: ValueType::LocalVal(ArcIdentifier {
+                            operator: new_op_id_base + i,
+                            index: -1,
+                        }),
+                    }
+                }
+            }
+        }
+
+        compiled_algo.graph.arcs.push(Arc {
+            target: ArcIdentifier {
+                operator: new_op_id_base + i,
+                index: 0,
+            },
+            source: ArcSource {
+                s_type: "env".into(),
+                val: ValueType::EnvironmentVal(i),
+            },
+        });
     }
 }
 
@@ -560,11 +598,11 @@ pub fn generate_code(
     let scope_fn_code = handle_scope_operator(compiled_algo);
     // change operator type for `smapFun` and `oneToN`
     change_operator_types(compiled_algo);
+    handle_environment_arcs(compiled_algo);
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
     let sf_code = generate_sfns(&compiled_algo, algo_call_args);
     let op_code = generate_ops(&compiled_algo);
-    let envarcs = generate_envarcs(&compiled_algo, algo_call_args);
 
     // Macro hygiene: I can create a variable here and use it throughout the whole call-site of this
     // macro because quote! has Span:call_site() -> call site = call site of the macro!
@@ -578,8 +616,6 @@ pub fn generate_code(
 
             #arc_code
             let (result_snd, result_rcv) = std::sync::mpsc::channel();
-
-            #envarcs
 
             #sf_code
 
