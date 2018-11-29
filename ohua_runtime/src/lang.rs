@@ -5,8 +5,10 @@ use std::any::Any;
 
 #[allow(non_snake_case)]
 pub fn smapFun<T: Any + 'static + Send, S: Iterator<Item = T> + 'static + Send>
-    (inp: &Receiver<S>, data_out: &Sender<T>, ctrl_out: &Sender<(bool, usize)>, collect_out: &Sender<usize>)
-    -> Result<(), RunError> {
+    (inp: &Receiver<S>,
+     data_out: &Sender<T>,
+     ctrl_out: &Sender<(bool, usize)>,
+     collect_out: &Sender<usize>) -> Result<(), RunError> {
     let data = inp.recv()?;
     let (_, size) = data.size_hint();
     match size {
@@ -46,8 +48,10 @@ pub fn ctrl_state<T: Send + Clone>() -> CtrlState<T> {
 // TODO heterogeneous lists in Rust don't come easy.
 //      we really have to put this operator into our code generation.
 //      this might work for now: https://github.com/lloydmeta/frunk
-pub fn ctrl<T: Send + Clone>(state: &mut CtrlState<T>, ctrl_inp: &Receiver<(bool,isize)>,
-                     vars_inp: &Vec<Receiver<T>>, outs: &Vec<Sender<T>>) -> Result<(), RunError> {
+pub fn ctrl<T: Send + Clone>(state: &mut CtrlState<T>,
+                             ctrl_inp: &Receiver<(bool,isize)>,
+                             vars_inp: &Vec<Receiver<T>>,
+                             outs: &Vec<Sender<T>>) -> Result<(), RunError> {
 
     let (renew_next_time, count) = ctrl_inp.recv()?;
     if !state.renew {
@@ -69,7 +73,9 @@ pub fn ctrl<T: Send + Clone>(state: &mut CtrlState<T>, ctrl_inp: &Receiver<(bool
     Ok(())
 }
 
-pub fn collect<T: Send>(n: &Receiver<usize>, data: &Receiver<T>, out: &Sender<Vec<T>>) -> Result<(), RunError> {
+pub fn collect<T: Send>(n: &Receiver<usize>,
+                        data: &Receiver<T>,
+                        out: &Sender<Vec<T>>) -> Result<(), RunError> {
     let num = n.recv()?;
     let mut buffered = Vec::new();
     for _x in 0..num {
@@ -79,12 +85,10 @@ pub fn collect<T: Send>(n: &Receiver<usize>, data: &Receiver<T>, out: &Sender<Ve
     Ok(())
 }
 
-pub fn select<T: Send>(
-    decision: &Receiver<bool>,
-    true_branch: &Receiver<T>,
-    else_branch: &Receiver<T>,
-    out: &Sender<T>,
-) -> Result<(), RunError> {
+pub fn select<T: Send>(decision: &Receiver<bool>,
+                       true_branch: &Receiver<T>,
+                       else_branch: &Receiver<T>,
+                       out: &Sender<T>) -> Result<(), RunError> {
     let branch = if decision.recv()? {
         true_branch
     } else {
