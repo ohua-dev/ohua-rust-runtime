@@ -435,6 +435,75 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     }
 }
 
+fn generate_call_to_ctrl(ctrl_in: Ident, ins: Vec<Ident>, outs: Vec<Ident>) -> TokenStream {
+    let num_args = ins.len();
+    assert!(ins.len() == outs.len());
+    quote!{
+        ctrl_#num_args(#ctrl_in, ( #(#ins),* ) , ( #(#outs),* ) )
+    }
+}
+
+fn generate_ctrl_operator(num_args:isize) -> TokenStream {
+    let vars_in:Vec<Ident> = (0..num_args).map(|arg_idx| {
+                              Ident::new(&format!("var_in_{}", arg_idx.to_string()),
+                                         Span::call_site()) })
+                                          .collect();
+    let vars_out:Vec<Ident> = (0..num_args).map(|arg_idx| {
+                              Ident::new(&format!("var_out_{}", arg_idx.to_string()),
+                                         Span::call_site()) })
+                                           .collect();
+    let vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
+                              Ident::new(&format!("var_{}", arg_idx.to_string()),
+                                         Span::call_site()) })
+                                       .collect();
+
+    quote!{
+        //
+        // The ctrl operator needs to be stateful but can not define its own state.
+        // The state of the operator would have to capture the data retrieved from the
+        // arcs of the vars. But what would be their type???
+        // For a generic backend, we don't ever deal with types. We rely solely on the
+        // type inference mechanisms of the target language.
+        // As such, we can not write or even generate a function that creates this state.
+        // THIS IS A GENERAL INSIGHT: state in operators (which are meant to be polymorph with
+        // respect to the data in the graph) can never contain anything that is related to the
+        // data in the graph!
+        // As such, the only way to write such an operator is using tail recursion as shown below.
+        //
+        let send_vars_#num_args = |count, (#(#vars,)*), (#(#vars_out,)*)| {
+            for _ in 0..count {
+                // TODO Turn unwraps into the proper runtime errors
+                #(#vars_out.send(#vars.clone()).unwrap();)*
+            }
+        }
+
+        let receive_vars_#num_args = |(#(#vars_in,)*)| {
+            // TODO Turn unwraps into the proper runtime errors
+            // create a tuple of new vars
+            ( #(#vars_in.recv().unwrap()),* )
+        }
+
+        let ctrl_#num_args = |ctrl_inp, #(#vars_in,)* #(#vars_out),*| {
+            let (renew_next_time, count) = ctrl_inp.recv()?;
+            let vars = receive_vars_#num_args(ins);
+            send_vars_#num_args(count, vars, outs);
+            ctrl_#num_args(ctrl_inp, ins, outs, renew_next_time, vars)
+        };
+
+        let ctrl_#num_args = |ctrl_inp, old_vars, vars_in, vars_out, renew, old_vars| {
+            let (renew_next_time, count) = ctrl_inp.recv()?;
+            let vars = if renew {
+                            receive_vars_#num_args(vars_in)
+                       } else {
+                           // reuse the captured vars
+                           old_vars
+                       };
+            send_vars_#num_args(count, vars, vars_out);
+            ctrl_#num_args(ctrl_inp, ins, outs, renew_next_time, vars)
+        }
+    }
+}
+
 fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
     let mut scope_functions: Vec<TokenStream> = Vec::new();
     for operator in &mut compiled_algo.graph.operators {
@@ -523,7 +592,7 @@ fn change_operator_types(compiled_algo: &mut OhuaData) {
 }
 
 fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
-    // speacial-casing of zero env-arcs as they still have a mainarity of one.
+    // special-casing of zero env-arcs as they still have a main arity of one.
     // Hotfix until ohua-dev/ohuac#16 is fixed
     if compiled_algo
         .graph

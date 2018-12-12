@@ -4,6 +4,7 @@
 //!
 //! TODO: Expand me! (Issue: [#15](https://github.com/ohua-dev/ohua-rust-runtime/issues/15))
 #![allow(dead_code, unused_imports, unused_variables)]
+#![recursion_limit="128"]
 
 extern crate serde;
 #[macro_use]

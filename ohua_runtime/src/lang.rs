@@ -45,34 +45,6 @@ pub fn ctrl_state<T: Send + Clone>() -> CtrlState<T> {
     }
 }
 
-// TODO heterogeneous lists in Rust don't come easy.
-//      we really have to put this operator into our code generation.
-//      this might work for now: https://github.com/lloydmeta/frunk
-pub fn ctrl<T: Send + Clone>(state: &mut CtrlState<T>,
-                             ctrl_inp: &Receiver<(bool,isize)>,
-                             vars_inp: &Vec<Receiver<T>>,
-                             outs: &Vec<Sender<T>>) -> Result<(), RunError> {
-
-    let (renew_next_time, count) = ctrl_inp.recv()?;
-    if !state.renew {
-        // TODO Turn unwraps into the proper runtime errors
-        let vars:Vec<T> = vars_inp.iter().map(|var_inp| var_inp.recv().unwrap()).collect();
-        state.vars = vars;
-    } else {
-        // renuse the captured vars
-    };
-
-    // update the state
-    state.renew = renew_next_time;
-
-    for _ in 0..count {
-        state.vars.iter()
-                  .zip(outs)
-                  .for_each(|(var, out)| out.send(var.clone()).unwrap());
-    }
-    Ok(())
-}
-
 pub fn collect<T: Send>(n: &Receiver<usize>,
                         data: &Receiver<T>,
                         out: &Sender<Vec<T>>) -> Result<(), RunError> {
@@ -115,4 +87,16 @@ pub fn ifFun(cond: &Receiver<bool>,
 #[allow(non_snake_case)]
 pub fn seqFun<T: Send>(_: T) -> (bool,isize) {
     (true, 1)
+}
+
+pub fn recurFun<T: Send, S: Send>(call_actuals_in: &Receiver<T>,
+                                  recur_cond_in: &Receiver<T>,
+                                  recur_actuals_in: &Receiver<T>,
+                                  recur_result_in: &Receiver<S>,
+                                  ctrl_out: &Sender<(bool,isize)>,
+                                  recur_formals_out: &Sender<T>,
+                                  result_out: &Sender<S>) -> Result<(), RunError> {
+    // TODO
+
+    Ok(())
 }
