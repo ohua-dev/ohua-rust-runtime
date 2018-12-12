@@ -19,14 +19,11 @@ extern crate tempdir;
 extern crate proc_macro;
 extern crate proc_macro2;
 
-mod codegen;
 mod errors;
 mod ohua_types;
 mod ohuac;
 mod parse;
-mod type_extract;
 
-use codegen::generate_ohua_runtime;
 use codegen::typedgen::*;
 use errors::*;
 use ohua_types::OhuaData;
@@ -38,7 +35,6 @@ use std::fs::{self, File};
 use std::io;
 use std::path::PathBuf;
 use tempdir::TempDir;
-use type_extract::TypeKnowledgeBase;
 
 use self::proc_macro::TokenStream;
 use syn::export::ToTokens;

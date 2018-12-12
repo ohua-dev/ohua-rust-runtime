@@ -27,10 +27,17 @@ pub struct OhuaData {
 #[derive(Deserialize, Debug)]
 pub struct DFGraph {
     pub operators: Vec<Operator>,
-    pub arcs: Vec<Arc>,
+    pub arcs: Arcs,
     pub return_arc: ArcIdentifier,
     #[serde(default)]
     pub input_targets: Vec<ArcIdentifier>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Arcs {
+    pub direct: Vec<DirectArc>,
+    pub compound: Vec<CompoundArc>,
+    pub state: Vec<StateArc>,
 }
 
 /// A single operator of the DFG. Represents a stateful function that is to be called.
@@ -40,6 +47,8 @@ pub struct Operator {
     pub operatorId: i32,
     #[serde(rename(deserialize = "type"))]
     pub operatorType: OperatorType,
+    #[serde(rename(deserialize = "n_type"))]
+    pub nodeType: NodeType,
 }
 
 /// The inner operator information such as namespace, function name and link to the respective function.
@@ -49,30 +58,22 @@ pub struct OperatorType {
     pub qbNamespace: Vec<String>,
     #[serde(rename(deserialize = "name"))]
     pub qbName: String,
-    #[serde(default)]
-    pub func: String,
-    #[serde(default)]
-    pub op_type: OpType,
+    // #[serde(default)]
+    // pub func: String
 }
 
 /// Type of the operator. It can either be a normal wrapper around a SFN or a full-fledged Ohua operator.
 #[derive(Deserialize, Debug)]
-pub enum OpType {
+pub enum NodeType {
     /// Simple wrapper around a stateful function.
-    SfnWrapper,
+    FunctionNode,
     /// Dedicated Ohua operator, the enclosed string is the function name which is expected to be of type `Box<fn(OhuaOperator)>`.
-    OhuaOperator(String),
-}
-
-impl Default for OpType {
-    fn default() -> Self {
-        OpType::SfnWrapper
-    }
+    OperatorNode,
 }
 
 /// A simple Arc between two points in the graph.
 #[derive(Deserialize, Debug)]
-pub struct Arc {
+pub struct DirectArc {
     pub target: ArcIdentifier,
     pub source: ArcSource,
 }
@@ -82,6 +83,18 @@ pub struct Arc {
 pub struct ArcIdentifier {
     pub operator: i32,
     pub index: i32,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CompoundArc {
+    pub target: ArcIdentifier,
+    pub source: Vec<ArcSource>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StateArc {
+    pub target: i32,
+    pub source: ArcSource,
 }
 
 /// Describes the type of an Arc source. This can either be an environment value _or_ a local value (another operator).
@@ -109,135 +122,135 @@ pub struct SfDependency {
     pub qbName: String,
 }
 
-impl fmt::Display for OhuaData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut sf_deps = String::new();
-        for dep in &self.sfDependencies {
-            sf_deps += format!("{}, ", dep).as_str();
-        }
-
-        write!(
-            f,
-            "OhuaData {{graph: {}, mainArity: {}, sfDependencies: vec![{}]}}",
-            self.graph, self.mainArity, sf_deps
-        )
-    }
-}
-
-impl fmt::Display for DFGraph {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut ops = String::new();
-        for op in &self.operators {
-            ops += format!("{}, ", op).as_str();
-        }
-
-        let mut arcs = String::new();
-        for arc in &self.arcs {
-            arcs += format!("{}, ", arc).as_str();
-        }
-
-        let mut inputs = String::new();
-        for inp in &self.input_targets {
-            inputs += format!("{}, ", inp).as_str();
-        }
-
-        write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], return_arc: {}, input_targets: vec![{}]}}", ops, arcs, &self.return_arc, inputs)
-    }
-}
-
-impl fmt::Display for Operator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Operator {{operatorId: {}, operatorType: {}}}",
-            self.operatorId, self.operatorType
-        )
-    }
-}
-
-impl OperatorType {
-    pub fn function_name(&self) -> String {
-        let mut name = String::new();
-        for item in &self.qbNamespace {
-            name += item.as_str();
-            name += "::";
-        }
-        name += self.qbName.as_str();
-
-        name
-    }
-}
-
-impl fmt::Display for OperatorType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut namesp = String::new();
-        for space in &self.qbNamespace {
-            namesp += format!("String::from(\"{}\"), ", space).as_str();
-        }
-
-        write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\"), func: Box::new({fn}), op_type: {ty}}}", namesp = namesp, name = self.qbName, fn = self.func, ty = self.op_type)
-    }
-}
-
-impl fmt::Display for OpType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            OpType::SfnWrapper => write!(f, "OpType::SfnWrapper"),
-            OpType::OhuaOperator(ref op) => write!(f, "OpType::OhuaOperator(Box::new({}))", op),
-        }
-    }
-}
-
-impl fmt::Display for Arc {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Arc {{target: {}, source: {}}}",
-            self.target, self.source
-        )
-    }
-}
-
-impl fmt::Display for ArcIdentifier {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "ArcIdentifier {{operator: {}, index: {}}}",
-            self.operator, self.index
-        )
-    }
-}
-
-impl fmt::Display for ValueType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &ValueType::EnvironmentVal(x) => write!(f, "ValueType::EnvironmentVal({})", x),
-            &ValueType::LocalVal(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
-        }
-    }
-}
-
-impl fmt::Display for ArcSource {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "ArcSource {{s_type: String::from(\"{}\"), val: {}}}",
-            self.s_type, self.val
-        )
-    }
-}
-
-impl fmt::Display for SfDependency {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut namesp = String::new();
-        for space in &self.qbNamespace {
-            namesp += format!("String::from(\"{}\"), ", space).as_str();
-        }
-
-        write!(
-            f,
-            "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}",
-            namesp, self.qbName
-        )
-    }
-}
+// impl fmt::Display for OhuaData {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         let mut sf_deps = String::new();
+//         for dep in &self.sfDependencies {
+//             sf_deps += format!("{}, ", dep).as_str();
+//         }
+//
+//         write!(
+//             f,
+//             "OhuaData {{graph: {}, mainArity: {}, sfDependencies: vec![{}]}}",
+//             self.graph, self.mainArity, sf_deps
+//         )
+//     }
+// }
+//
+// impl fmt::Display for DFGraph {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         let mut ops = String::new();
+//         for op in &self.operators {
+//             ops += format!("{}, ", op).as_str();
+//         }
+//
+//         let mut arcs = String::new();
+//         for arc in &self.arcs {
+//             arcs += format!("{}, ", arc).as_str();
+//         }
+//
+//         let mut inputs = String::new();
+//         for inp in &self.input_targets {
+//             inputs += format!("{}, ", inp).as_str();
+//         }
+//
+//         write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], return_arc: {}, input_targets: vec![{}]}}", ops, arcs, &self.return_arc, inputs)
+//     }
+// }
+//
+// impl fmt::Display for Operator {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "Operator {{operatorId: {}, operatorType: {}}}",
+//             self.operatorId, self.operatorType
+//         )
+//     }
+// }
+//
+// impl OperatorType {
+//     pub fn function_name(&self) -> String {
+//         let mut name = String::new();
+//         for item in &self.qbNamespace {
+//             name += item.as_str();
+//             name += "::";
+//         }
+//         name += self.qbName.as_str();
+//
+//         name
+//     }
+// }
+//
+// impl fmt::Display for OperatorType {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         let mut namesp = String::new();
+//         for space in &self.qbNamespace {
+//             namesp += format!("String::from(\"{}\"), ", space).as_str();
+//         }
+//
+//         write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\"), func: Box::new({fn}), op_type: {ty}}}", namesp = namesp, name = self.qbName, fn = self.func, ty = self.op_type)
+//     }
+// }
+//
+// impl fmt::Display for OpType {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match *self {
+//             OpType::SfnWrapper => write!(f, "OpType::SfnWrapper"),
+//             OpType::OhuaOperator(ref op) => write!(f, "OpType::OhuaOperator(Box::new({}))", op),
+//         }
+//     }
+// }
+//
+// impl fmt::Display for Arc {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "Arc {{target: {}, source: {}}}",
+//             self.target, self.source
+//         )
+//     }
+// }
+//
+// impl fmt::Display for ArcIdentifier {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "ArcIdentifier {{operator: {}, index: {}}}",
+//             self.operator, self.index
+//         )
+//     }
+// }
+//
+// impl fmt::Display for ValueType {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match self {
+//             &ValueType::EnvironmentVal(x) => write!(f, "ValueType::EnvironmentVal({})", x),
+//             &ValueType::LocalVal(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
+//         }
+//     }
+// }
+//
+// impl fmt::Display for ArcSource {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "ArcSource {{s_type: String::from(\"{}\"), val: {}}}",
+//             self.s_type, self.val
+//         )
+//     }
+// }
+//
+// impl fmt::Display for SfDependency {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         let mut namesp = String::new();
+//         for space in &self.qbNamespace {
+//             namesp += format!("String::from(\"{}\"), ", space).as_str();
+//         }
+//
+//         write!(
+//             f,
+//             "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}",
+//             namesp, self.qbName
+//         )
+//     }
+// }

@@ -33,18 +33,6 @@ pub fn smapFun<T: Any + 'static + Send, S: Iterator<Item = T> + 'static + Send>
     Ok(())
 }
 
-pub struct CtrlState<T>{
-    vars: Vec<T>,
-    renew: bool,
-}
-
-pub fn ctrl_state<T: Send + Clone>() -> CtrlState<T> {
-    CtrlState{
-        vars: vec![],
-        renew: true,
-    }
-}
-
 pub fn collect<T: Send>(n: &Receiver<usize>,
                         data: &Receiver<T>,
                         out: &Sender<Vec<T>>) -> Result<(), RunError> {
@@ -89,6 +77,7 @@ pub fn seqFun<T: Send>(_: T) -> (bool,isize) {
     (true, 1)
 }
 
+#[allow(non_snake_case)]
 pub fn recurFun<T: Send, S: Send>(call_actuals_in: &Receiver<T>,
                                   recur_cond_in: &Receiver<T>,
                                   recur_actuals_in: &Receiver<T>,
@@ -96,7 +85,7 @@ pub fn recurFun<T: Send, S: Send>(call_actuals_in: &Receiver<T>,
                                   ctrl_out: &Sender<(bool,isize)>,
                                   recur_formals_out: &Sender<T>,
                                   result_out: &Sender<S>) -> Result<(), RunError> {
-    // TODO
+    // TODO this will have to be in the code generation as well!
 
     Ok(())
 }

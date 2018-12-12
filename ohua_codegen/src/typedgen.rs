@@ -504,92 +504,92 @@ fn generate_ctrl_operator(num_args:isize) -> TokenStream {
     }
 }
 
-fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
-    let mut scope_functions: Vec<TokenStream> = Vec::new();
-    for operator in &mut compiled_algo.graph.operators {
-        if operator.operatorType.qbName == "scope"
-            && operator.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
-        {
-            // remove the namespace prefix, as we will generate this function
-            operator.operatorType.qbNamespace = Vec::with_capacity(0);
-
-            // generate the appropriate scope function
-            let func_name = format!("scope{n}", n = scope_functions.len());
-            let fn_name = Ident::new(&func_name, Span::call_site());
-
-            // num_inputs minus one, because we do not want the control arc as input
-            let param_input_iterator =
-                0..(get_num_inputs(&operator.operatorId, &compiled_algo.graph.arcs) - 1);
-
-            let type_params: Vec<Ident> =
-                param_input_iterator.clone().map(|x| Ident::new(&format!("T{}", x), Span::call_site())).collect();
-
-            let params_ret: Vec<Ident> = param_input_iterator
-                .map(|x| Ident::new(&format!("t{n}", n = x), Span::call_site()))
-                .collect();
-
-            let mut params_ret2 = params_ret.clone();
-            let mut type_params2 = type_params.clone();
-            let params: Vec<TokenStream> = params_ret2.drain(..).zip(type_params2.drain(..)).map(|(id, ty)| quote!{#id: #ty}).collect();
-
-            // let params: Vec<Ident> = param_input_iterator.clone()
-            //     .map(|x| Ident::new(&format!("t{n}: T{n}", n = x), Span::call_site()))
-            //     .collect();
-            let type_params_ret = type_params.clone();
-
-            // generate the actual scope function
-            let scope_fn = quote!{
-                fn #fn_name<#(#type_params),*>(#(#params),*) -> (#(#type_params_ret),*) {
-                    (#(#params_ret),*)
-                }
-            };
-
-            // add it to the structure
-            scope_functions.push(scope_fn);
-            operator.operatorType.qbName = func_name;
-
-            for arc in compiled_algo.graph.arcs.iter_mut() {
-                if let ValueType::LocalVal(ref mut src) = arc.source.val {
-                    if src.operator == operator.operatorId {
-                        src.index = -1;
-                    }
-                }
-            }
-        }
-    }
-    quote!{
-        #(
-            #scope_functions
-        )*
-    }
-}
+// fn handle_scope_operator(compiled_algo: &mut OhuaData) -> TokenStream {
+//     let mut scope_functions: Vec<TokenStream> = Vec::new();
+//     for operator in &mut compiled_algo.graph.operators {
+//         if operator.operatorType.qbName == "scope"
+//             && operator.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+//         {
+//             // remove the namespace prefix, as we will generate this function
+//             operator.operatorType.qbNamespace = Vec::with_capacity(0);
+//
+//             // generate the appropriate scope function
+//             let func_name = format!("scope{n}", n = scope_functions.len());
+//             let fn_name = Ident::new(&func_name, Span::call_site());
+//
+//             // num_inputs minus one, because we do not want the control arc as input
+//             let param_input_iterator =
+//                 0..(get_num_inputs(&operator.operatorId, &compiled_algo.graph.arcs) - 1);
+//
+//             let type_params: Vec<Ident> =
+//                 param_input_iterator.clone().map(|x| Ident::new(&format!("T{}", x), Span::call_site())).collect();
+//
+//             let params_ret: Vec<Ident> = param_input_iterator
+//                 .map(|x| Ident::new(&format!("t{n}", n = x), Span::call_site()))
+//                 .collect();
+//
+//             let mut params_ret2 = params_ret.clone();
+//             let mut type_params2 = type_params.clone();
+//             let params: Vec<TokenStream> = params_ret2.drain(..).zip(type_params2.drain(..)).map(|(id, ty)| quote!{#id: #ty}).collect();
+//
+//             // let params: Vec<Ident> = param_input_iterator.clone()
+//             //     .map(|x| Ident::new(&format!("t{n}: T{n}", n = x), Span::call_site()))
+//             //     .collect();
+//             let type_params_ret = type_params.clone();
+//
+//             // generate the actual scope function
+//             let scope_fn = quote!{
+//                 fn #fn_name<#(#type_params),*>(#(#params),*) -> (#(#type_params_ret),*) {
+//                     (#(#params_ret),*)
+//                 }
+//             };
+//
+//             // add it to the structure
+//             scope_functions.push(scope_fn);
+//             operator.operatorType.qbName = func_name;
+//
+//             for arc in compiled_algo.graph.arcs.iter_mut() {
+//                 if let ValueType::LocalVal(ref mut src) = arc.source.val {
+//                     if src.operator == operator.operatorId {
+//                         src.index = -1;
+//                     }
+//                 }
+//             }
+//         }
+//     }
+//     quote!{
+//         #(
+//             #scope_functions
+//         )*
+//     }
+// }
 
 /// Change the operator types for `smapFun` and `oneToN` from SfnWrapper to OhuaOperator
-fn change_operator_types(compiled_algo: &mut OhuaData) {
-    for op in &mut compiled_algo.graph.operators {
-        if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] {
-            match op.operatorType.qbName.as_str() {
-                "oneToN" |
-                "smapFun" |
-                "collect" |
-                "select" => {
-                    op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
-                    for arc in compiled_algo.graph.arcs.iter_mut() {
-                        if let ValueType::LocalVal(ref mut src) = arc.source.val {
-                            if src.operator == op.operatorId {
-                                src.index = 0;
-                            }
-                        }
-                    }
-                }
-                "bool" => {
-                    op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
-                }
-                _ => (),
-            }
-        }
-    }
-}
+// fn change_operator_types(compiled_algo: &mut OhuaData) {
+//     for op in &mut compiled_algo.graph.operators {
+//         if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] {
+//             match op.operatorType.qbName.as_str() {
+//                 "oneToN" |
+//                 "smapFun" |
+//                 "collect" |
+//                 "select" => {
+//                     op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
+//                     for arc in compiled_algo.graph.arcs.iter_mut() {
+//                         if let ValueType::LocalVal(ref mut src) = arc.source.val {
+//                             if src.operator == op.operatorId {
+//                                 src.index = 0;
+//                             }
+//                         }
+//                     }
+//                 }
+//                 "bool" => {
+//                     op.operatorType.op_type = OpType::OhuaOperator("whatever".into());
+//                 }
+//                 _ => (),
+//             }
+//         }
+//     }
+// }
 
 fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
     // special-casing of zero env-arcs as they still have a main arity of one.
