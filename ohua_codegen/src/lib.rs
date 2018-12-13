@@ -23,8 +23,9 @@ mod errors;
 mod ohua_types;
 mod ohuac;
 mod parse;
+mod typedgen;
 
-use codegen::typedgen::*;
+use typedgen::*;
 use errors::*;
 use ohua_types::OhuaData;
 use ohuac::OhuaProduction;

@@ -1,9 +1,10 @@
 #![allow(unused_doc_comments)]
+use ohua_types::ArcIdentifier;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{Receiver, Sender};
 
 use ohua_types::ValueType::{EnvironmentVal, LocalVal};
-use ohua_types::{Arc, ArcSource, OhuaData, OpType, Operator, OperatorType, ValueType};
+use ohua_types::{NodeType, Arcs, DirectArc, CompoundArc, StateArc, ArcSource, OhuaData, Operator, OperatorType, ValueType};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
@@ -17,13 +18,13 @@ fn get_op_id(val: &ValueType) -> &i32 {
     }
 }
 
-fn get_num_inputs(op: &i32, arcs: &Vec<Arc>) -> usize {
+fn get_num_inputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
     arcs.iter()
         .filter(|arc| &(arc.target.operator) == op)
         .count()
 }
 
-fn get_num_outputs(op: &i32, arcs: &Vec<Arc>) -> usize {
+fn get_num_outputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
     arcs.iter()
         .filter(|arc| match &(arc.source.val) {
             EnvironmentVal(i) => unimplemented!(),
@@ -32,7 +33,7 @@ fn get_num_outputs(op: &i32, arcs: &Vec<Arc>) -> usize {
         .count()
 }
 
-fn get_outputs(op: &i32, arcs: &Vec<Arc>) -> Vec<i32> {
+fn get_outputs(op: &i32, arcs: &Vec<DirectArc>) -> Vec<i32> {
     let mut t: Vec<i32> = arcs
         .iter()
         .filter(|arc| match &(arc.source.val) {
@@ -48,7 +49,7 @@ fn get_outputs(op: &i32, arcs: &Vec<Arc>) -> Vec<i32> {
     t
 }
 
-fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
+fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
     let t = arcs
         .iter()
         .filter(|arc| match &(arc.source.val) {
@@ -59,7 +60,7 @@ fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
     t
 }
 
-fn get_in_arcs<'a>(op: &i32, arcs: &'a Vec<Arc>) -> Vec<&'a Arc> {
+fn get_in_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
     let t = arcs
         .iter()
         .filter(|arc| &(arc.target.operator) == op)
@@ -83,12 +84,12 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> String 
             "Ohua compiler invariant broken: Operator not registered: {}",
             op
         ));
-    let computed_idx = match &(op_spec.operatorType.op_type) {
-        OpType::SfnWrapper => {
+    let computed_idx = match &(op_spec.nodeType) {
+        NodeType::FunctionNode => {
             assert!(idx == &-1);
             &0
         }
-        OpType::OhuaOperator(_) => {
+        NodeType::OperatorNode => {
             assert!(idx >= &0);
             idx
         }
@@ -97,7 +98,7 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> String 
     format!("sf_{}_out_{}", op.to_string(), computed_idx.to_string())
 }
 
-fn generate_out_arc_var(arc: &Arc, ops: &Vec<Operator>) -> Ident {
+fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
     let out_idx = get_out_index_from_source(&(arc.source));
     let src_op = get_op_id(&(arc.source.val));
     let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
@@ -138,7 +139,7 @@ Generates the parameters for a call.
 */
 fn generate_in_arcs_vec(
     op: &i32,
-    arcs: &Vec<Arc>,
+    arcs: &Vec<DirectArc>,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> Vec<TokenStream> {
     let mut in_arcs = get_in_arcs(op, arcs);
@@ -160,7 +161,7 @@ fn generate_in_arcs_vec(
         .collect()
 }
 
-fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<Ident> {
+fn generate_out_arcs_vec(op: &i32, arcs: &Vec<DirectArc>, ops: &Vec<Operator>) -> Vec<Ident> {
     get_out_arcs(&op, &arcs)
         .iter()
         .map(|arc| generate_out_arc_var(arc, ops))
@@ -168,9 +169,10 @@ fn generate_out_arcs_vec(op: &i32, arcs: &Vec<Arc>, ops: &Vec<Operator>) -> Vec<
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let arcs: Vec<&Arc> = compiled
+    let arcs: Vec<&DirectArc> = compiled
         .graph
         .arcs
+        .direct
         .iter()
         .filter(|a| filter_env_arc(&a))
         .collect();
@@ -196,18 +198,18 @@ fn get_call_reference(op_type: &OperatorType) -> Ident {
 
 pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
     let ops = compiled.graph.operators.iter().filter(|o| {
-        (match o.operatorType.op_type {
-            OpType::OhuaOperator(_) => true,
+        (match o.nodeType {
+            NodeType::OperatorNode => true,
             _ => false,
         })
     });
     let op_codes: Vec<TokenStream> = ops
         .map(|op| {
             let mut call_args =
-                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), &Punctuated::new()); // ops can never have EnvArgs -> invariant broken
+                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs.direct), &Punctuated::new()); // ops can never have EnvArgs -> invariant broken
             let out_arcs = generate_out_arcs_vec(
                 &(op.operatorId),
-                &(compiled.graph.arcs),
+                &(compiled.graph.arcs.direct),
                 &(compiled.graph.operators),
             );
 
@@ -221,18 +223,10 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
 
             let op_name = get_call_reference(&op.operatorType);
 
-            assert!(find_control_input(&(op.operatorId), &compiled.graph.arcs).is_none());
-
             if call_args.len() > 0 {
                 quote!{
                     loop{
-                        // FIXME do we really have a valid design to handle control input for operators?
-                        //       how do we drain the inputs if the op dequeues n packets from some input channel???
-                        // if #ctrl.recv().unboxed() {
                         #op_name(#(&#call_args),*)?;
-                        // } else {
-                        //     // skip
-                        // }
                     }
                 }
             } else {
@@ -246,15 +240,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
     }
 }
 
-fn find_control_input(op: &i32, arcs: &Vec<Arc>) -> Option<Ident> {
-    arcs.into_iter()
-        .find(|arc| &(arc.target.operator) == op && arc.target.index == -1)
-        .map(|ctrl_arc| {
-            generate_var_for_in_arc(&(ctrl_arc.target.operator), &(ctrl_arc.target.index))
-        })
-}
-
-fn filter_env_arc(arc: &Arc) -> bool {
+fn filter_env_arc(arc: &DirectArc) -> bool {
     match arc.source.val {
         EnvironmentVal(_) => false,
         _ => true,
@@ -269,16 +255,16 @@ pub fn generate_sfns(
         .graph
         .operators
         .iter()
-        .filter(|&o| match o.operatorType.op_type {
-            OpType::SfnWrapper => true,
+        .filter(|&o| match o.nodeType {
+            NodeType::FunctionNode => true,
             _ => false,
         });
     let sf_codes: Vec<TokenStream> = sfns
         .map(|op| {
             let mut in_arcs =
-                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs), algo_call_args);
-            let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs));
-            let mut zipped_in_arcs: Vec<(&&Arc, TokenStream)> =
+                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs.direct), algo_call_args);
+            let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs.direct));
+            let mut zipped_in_arcs: Vec<(&&DirectArc, TokenStream)> =
                 orig_in_arcs.iter().zip(in_arcs.drain(..)).collect();
 
             // determine if cloning is necessary and apply it if so
@@ -306,7 +292,7 @@ pub fn generate_sfns(
 
             let out_arcs = generate_out_arcs_vec(
                 &op.operatorId,
-                &(compiled.graph.arcs),
+                &(compiled.graph.arcs.direct),
                 &(compiled.graph.operators),
             );
 
@@ -320,15 +306,13 @@ pub fn generate_sfns(
                 &compiled.graph.return_arc.operator,
             );
 
-            let ctrl_port = find_control_input(&(op.operatorId), &compiled.graph.arcs);
-
             let drain_arcs: Vec<TokenStream> = zipped_in_arcs
                 .iter()
                 .filter(|(arc, _)| filter_env_arc(&arc))
                 .map(|(_, t)| t.clone())
                 .collect();
             let num_input_arcs = drain_arcs.len();
-            let drain_inputs = quote!{ #(#drain_arcs.recv()?;)* };
+            // let drain_inputs = quote!{ #(#drain_arcs.recv()?;)* };
 
             let call_args: Vec<TokenStream> = zipped_in_arcs
                 .iter()
@@ -341,17 +325,9 @@ pub fn generate_sfns(
             let sfn_code = quote!{ let #r = #call_code; #send };
 
             if num_input_arcs > 0 {
-                match &ctrl_port {
-                    None => quote!{ loop { #sfn_code } },
-                    Some(p) => quote!{ loop { if #p.recv()? { #sfn_code } else { #drain_inputs } } },
-                }
+                quote!{ loop { #sfn_code } }
             } else {
-                match &ctrl_port {
-                    None => quote!{ #sfn_code; Ok(()) },
-                    Some(p) => {
-                        quote!{ loop { if #p.recv()? { #sfn_code } else { /* Drop call */ } } }
-                    }
-                }
+                quote!{ #sfn_code; Ok(()) }
             }
         })
         .collect();
@@ -470,37 +446,47 @@ fn generate_ctrl_operator(num_args:isize) -> TokenStream {
         // data in the graph!
         // As such, the only way to write such an operator is using tail recursion as shown below.
         //
-        let send_vars_#num_args = |count, (#(#vars,)*), (#(#vars_out,)*)| {
-            for _ in 0..count {
-                // TODO Turn unwraps into the proper runtime errors
-                #(#vars_out.send(#vars.clone()).unwrap();)*
-            }
-        }
-
-        let receive_vars_#num_args = |(#(#vars_in,)*)| {
-            // TODO Turn unwraps into the proper runtime errors
-            // create a tuple of new vars
-            ( #(#vars_in.recv().unwrap()),* )
-        }
-
         let ctrl_#num_args = |ctrl_inp, #(#vars_in,)* #(#vars_out),*| {
             let (renew_next_time, count) = ctrl_inp.recv()?;
-            let vars = receive_vars_#num_args(ins);
-            send_vars_#num_args(count, vars, outs);
+            let vars = ( #(#vars_in.recv().unwrap()),* );
+            for _ in 0..count {
+                #(#vars_out.send(#vars.clone()).unwrap();)*
+            }
             ctrl_#num_args(ctrl_inp, ins, outs, renew_next_time, vars)
         };
 
         let ctrl_#num_args = |ctrl_inp, old_vars, vars_in, vars_out, renew, old_vars| {
             let (renew_next_time, count) = ctrl_inp.recv()?;
             let vars = if renew {
-                            receive_vars_#num_args(vars_in)
+                            ( #(#vars_in.recv().unwrap()),* );
                        } else {
                            // reuse the captured vars
                            old_vars
                        };
-            send_vars_#num_args(count, vars, vars_out);
+            for _ in 0..count {
+               #(#vars_out.send(#vars.clone()).unwrap();)*
+            }
             ctrl_#num_args(ctrl_inp, ins, outs, renew_next_time, vars)
         }
+    }
+}
+
+fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
+    let code =
+        compiled_algo.graph.operators
+             .iter()
+             .filter(|op| {
+                 op.operatorType.qbNamespace == vec!["lang"] &&
+                 op.operatorType.qbName.as_str() ==  "ctrl"
+             })
+             .map(|op|{
+                let num_args = get_num_inputs(op);
+                generate_ctrl_operator(num_args-1)
+             })
+             .collect();
+
+    quote!{
+        #(#code)*
     }
 }
 
@@ -627,13 +613,12 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
             operatorType: OperatorType {
                 qbNamespace: vec!["ohua_runtime".into(), "lang".into()],
                 qbName: "id".into(),
-                func: String::default(),
-                op_type: OpType::SfnWrapper,
             },
+            nodeType: NodeType::FunctionNode,
         });
 
         // reroute any env-arcs with matching id
-        for arc in &mut compiled_algo.graph.arcs {
+        for arc in &mut compiled_algo.graph.arcs.direct {
             if let ValueType::EnvironmentVal(env_id) = arc.source.val {
                 if i == env_id {
                     arc.source = ArcSource {
@@ -647,7 +632,7 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
             }
         }
 
-        compiled_algo.graph.arcs.push(Arc {
+        compiled_algo.graph.arcs.direct.push(DirectArc {
             target: ArcIdentifier {
                 operator: new_op_id_base + i,
                 index: 0,
@@ -664,9 +649,7 @@ pub fn generate_code(
     compiled_algo: &mut OhuaData,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> TokenStream {
-    let scope_fn_code = handle_scope_operator(compiled_algo);
-    // change operator type for `smapFun` and `oneToN`
-    change_operator_types(compiled_algo);
+    let ctrl_code = generate_ctrls(compiled_algo);
     handle_environment_arcs(compiled_algo);
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
@@ -681,7 +664,7 @@ pub fn generate_code(
         {
             #header_code
 
-            #scope_fn_code
+            #ctrl_code
 
             #arc_code
             let (result_snd, result_rcv) = std::sync::mpsc::channel();
@@ -707,42 +690,47 @@ mod tests {
 
     use std::sync::mpsc;
 
-    use ohua_types::Arc;
     use ohua_types::ArcIdentifier;
     use ohua_types::ArcSource;
     use ohua_types::DFGraph;
     use ohua_types::OhuaData;
-    use ohua_types::OpType;
     use ohua_types::Operator;
     use ohua_types::OperatorType;
     use ohua_types::ValueType;
 
-    fn producer_consumer(prod: OperatorType, con: OperatorType, out_idx: i32) -> OhuaData {
+    fn producer_consumer(prod: OperatorType, prod_t: NodeType,
+                         con: OperatorType, con_t: NodeType, out_idx: i32) -> OhuaData {
         OhuaData {
             graph: DFGraph {
                 operators: vec![
                     Operator {
                         operatorId: 0,
                         operatorType: prod,
+                        nodeType: prod_t,
                     },
                     Operator {
                         operatorId: 1,
                         operatorType: con,
+                        nodeType: con_t,
                     },
                 ],
-                arcs: vec![Arc {
-                    target: ArcIdentifier {
-                        operator: 1,
-                        index: 0,
-                    },
-                    source: ArcSource {
-                        s_type: "".to_string(),
-                        val: ValueType::LocalVal(ArcIdentifier {
-                            operator: 0,
-                            index: out_idx,
-                        }),
-                    },
-                }],
+                arcs: Arcs {
+                    direct: vec![Arc {
+                        target: ArcIdentifier {
+                            operator: 1,
+                            index: 0,
+                        },
+                        source: ArcSource {
+                            s_type: "".to_string(),
+                            val: ValueType::LocalVal(ArcIdentifier {
+                                operator: 0,
+                                index: out_idx,
+                            }),
+                        },
+                    }],
+                    compound: vec![],
+                    state: vec![],
+                },
                 return_arc: ArcIdentifier {
                     operator: 1,
                     index: -1,
@@ -760,15 +748,13 @@ mod tests {
             OperatorType {
                 qbNamespace: vec!["ns1".to_string()],
                 qbName: "some_sfn".to_string(),
-                func: "none".to_string(),
-                op_type: OpType::SfnWrapper,
             },
+            NodeType::FunctionNode,
             OperatorType {
                 qbNamespace: vec!["ns2".to_string()],
                 qbName: "some_other_sfn".to_string(),
-                func: "none".to_string(),
-                op_type: OpType::SfnWrapper,
             },
+            NodeType::FunctionNode,
             -1,
         );
 
@@ -800,15 +786,13 @@ mod tests {
             OperatorType {
                 qbNamespace: vec!["ns1".to_string()],
                 qbName: "some_op".to_string(),
-                func: "none".to_string(),
-                op_type: OpType::OhuaOperator("whatever".to_string()),
             },
+            NodeType::OperatorNode,
             OperatorType {
                 qbNamespace: vec!["ns2".to_string()],
                 qbName: "some_other_op".to_string(),
-                func: "none".to_string(),
-                op_type: OpType::OhuaOperator("whatever".to_string()),
             },
+            NodeType::OperatorNode,
             0,
         );
 
@@ -836,20 +820,23 @@ mod tests {
                     operatorType: OperatorType {
                         qbNamespace: vec!["ns1".to_string()],
                         qbName: "some_sfn".to_string(),
-                        func: "none".to_string(),
-                        op_type: OpType::SfnWrapper,
                     },
+                    nodeType: NodeType::FunctionNode,
                 }],
-                arcs: vec![Arc {
-                    target: ArcIdentifier {
-                        operator: 0,
-                        index: 0,
-                    },
-                    source: ArcSource {
-                        s_type: "".to_string(),
-                        val: ValueType::EnvironmentVal(0),
-                    },
-                }],
+                arcs: Arcs {
+                    direct: vec![DirectArc {
+                        target: ArcIdentifier {
+                            operator: 0,
+                            index: 0,
+                        },
+                        source: ArcSource {
+                            s_type: "".to_string(),
+                            val: ValueType::EnvironmentVal(0),
+                        },
+                    }],
+                    compound: vec![],
+                    state: vec![],
+                },
                 return_arc: ArcIdentifier {
                     operator: 1,
                     index: -1,
