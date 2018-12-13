@@ -411,15 +411,19 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     }
 }
 
-fn generate_call_to_ctrl(ctrl_in: Ident, ins: Vec<Ident>, outs: Vec<Ident>) -> TokenStream {
-    let num_args = ins.len();
-    assert!(ins.len() == outs.len());
-    quote!{
-        ctrl_#num_args(#ctrl_in, ( #(#ins),* ) , ( #(#outs),* ) )
-    }
-}
-
-fn generate_ctrl_operator(num_args:isize) -> TokenStream {
+//
+// The ctrl operator needs to be stateful but can not define its own state.
+// The state of the operator would have to capture the data retrieved from the
+// arcs of the vars. But what would be their type???
+// For a generic backend, we don't ever deal with types. We rely solely on the
+// type inference mechanisms of the target language.
+// As such, we can not write or even generate a function that creates this state.
+// THIS IS A GENERAL INSIGHT: state in operators (which are meant to be polymorph with
+// respect to the data in the graph) can never contain anything that is related to the
+// data in the graph!
+// As such, the only way to write such an operator is using tail recursion as shown below.
+//
+fn generate_ctrl_operator(num_args: usize) -> TokenStream {
     let vars_in:Vec<Ident> = (0..num_args).map(|arg_idx| {
                               Ident::new(&format!("var_in_{}", arg_idx.to_string()),
                                          Span::call_site()) })
@@ -432,47 +436,55 @@ fn generate_ctrl_operator(num_args:isize) -> TokenStream {
                               Ident::new(&format!("var_{}", arg_idx.to_string()),
                                          Span::call_site()) })
                                        .collect();
+    let type_vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
+                           Ident::new(&format!("T{}", arg_idx.to_string()),
+                                      Span::call_site()) })
+                                    .collect();
 
     quote!{
-        //
-        // The ctrl operator needs to be stateful but can not define its own state.
-        // The state of the operator would have to capture the data retrieved from the
-        // arcs of the vars. But what would be their type???
-        // For a generic backend, we don't ever deal with types. We rely solely on the
-        // type inference mechanisms of the target language.
-        // As such, we can not write or even generate a function that creates this state.
-        // THIS IS A GENERAL INSIGHT: state in operators (which are meant to be polymorph with
-        // respect to the data in the graph) can never contain anything that is related to the
-        // data in the graph!
-        // As such, the only way to write such an operator is using tail recursion as shown below.
-        //
-        let ctrl_#num_args = |ctrl_inp, #(#vars_in,)* #(#vars_out),*| {
-            let (renew_next_time, count) = ctrl_inp.recv()?;
-            let vars = ( #(#vars_in.recv().unwrap()),* );
-            for _ in 0..count {
-                #(#vars_out.send(#vars.clone()).unwrap();)*
-            }
-            ctrl_#num_args(ctrl_inp, ins, outs, renew_next_time, vars)
-        };
+        fn ctrl_#num_args<#(#type_vars:Clone),*>(
+            ctrl_inp:&Receiver<(bool,isize)>,
+            #(#vars_in:&Receiver<#type_vars>),* ,
+            #(#vars_out:&Sender<#type_vars>),*) {
+          let (renew_next_time, count) = ctrl_inp.recv().unwrap();
+          let (#(#vars,)*) = ( #(#vars_in.recv().unwrap()),* );
+          for _ in 0..count {
+              #(#vars_out.send(#vars.clone()).unwrap();)*
+          };
+          ctrl_sf_#num_args(ctrl_inp,
+                            #(#vars_in),* ,
+                            #(#vars_out),* ,
+                            renew_next_time,
+                            (#(#vars),*))
+        }
 
-        let ctrl_#num_args = |ctrl_inp, old_vars, vars_in, vars_out, renew, old_vars| {
-            let (renew_next_time, count) = ctrl_inp.recv()?;
-            let vars = if renew {
-                            ( #(#vars_in.recv().unwrap()),* );
-                       } else {
-                           // reuse the captured vars
-                           old_vars
-                       };
-            for _ in 0..count {
-               #(#vars_out.send(#vars.clone()).unwrap();)*
-            }
-            ctrl_#num_args(ctrl_inp, ins, outs, renew_next_time, vars)
+        fn ctrl_sf_#num_args<T1:Clone,T2:Clone>(
+            ctrl_inp:&Receiver<(bool,isize)>,
+            #(#vars_in:&Receiver<#type_vars>),* ,
+            #(#vars_out:&Sender<#type_vars>),* ,
+            renew: bool,
+            state_vars:(#(#type_vars),*)) {
+          let (renew_next_time, count) = ctrl_inp.recv().unwrap();
+          let (#(#vars,)*) = if renew {
+                          ( #(#vars_in.recv().unwrap()),* )
+                     } else {
+                         // reuse the captured vars
+                         state_vars
+                     };
+          for _ in 0..count {
+              #(#vars_out.send(#vars.clone()).unwrap();)*
+          };
+          ctrl_sf_#num_args(ctrl_inp,
+                            #(#vars_in),* ,
+                            #(#vars_out),* ,
+                            renew_next_time,
+                            (#(#vars),*))
         }
     }
 }
 
 fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
-    let code =
+    let code: Vec<TokenStream> =
         compiled_algo.graph.operators
              .iter()
              .filter(|op| {
@@ -480,7 +492,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
                  op.operatorType.qbName.as_str() ==  "ctrl"
              })
              .map(|op|{
-                let num_args = get_num_inputs(op);
+                let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
                 generate_ctrl_operator(num_args-1)
              })
              .collect();
@@ -583,6 +595,7 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
     if compiled_algo
         .graph
         .arcs
+        .direct
         .iter()
         .filter(|a| {
             if let ValueType::EnvironmentVal(_) = a.source.val {
@@ -715,7 +728,7 @@ mod tests {
                     },
                 ],
                 arcs: Arcs {
-                    direct: vec![Arc {
+                    direct: vec![DirectArc {
                         target: ArcIdentifier {
                             operator: 1,
                             index: 0,
