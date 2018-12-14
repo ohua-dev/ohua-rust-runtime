@@ -36,7 +36,7 @@ pub struct DFGraph {
 #[derive(Deserialize, Debug)]
 pub struct Arcs {
     pub direct: Vec<DirectArc>,
-    pub compound: Vec<CompoundArc>,
+    pub compound: Vec<CompoundArc>,// FIXME to be removed!
     pub state: Vec<StateArc>,
 }
 
