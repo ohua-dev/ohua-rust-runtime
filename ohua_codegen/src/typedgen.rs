@@ -110,7 +110,7 @@ fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
     An input port can only have one incoming arc. So it is enough to use the op-id and the input-port-id
     to generate a unique variable name.
     However, it is possible for one output port to have more than one outgoing arc.
-    As such, using the only the op-id in combination with the output-port-id will not work because
+    As such, using only the op-id in combination with the output-port-id will not work because
     there are multiple arcs with the same source and has the variable name would be generated
     multiple times.
     We simply make this name unique again by the fact that each arc is unique and an arc is uniquely
@@ -124,12 +124,31 @@ fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
 
 fn generate_var_for_in_arc(op: &i32, idx: &i32) -> Ident {
     assert!(idx > &-2);
-    let index = match idx {
-        -1 => "ctrl".to_string(),
-        _ => idx.to_string(),
-    };
+    // let index = match idx {
+    //     -1 => "ctrl".to_string(),
+    //     _ => idx.to_string(),
+    // };
     Ident::new(
-        &format!("sf_{}_in_{}", op.to_string(), index),
+        &format!("sf_{}_in_{}", op.to_string(), idx),
+        Span::call_site(),
+    )
+}
+
+fn generate_send_var_for_state_arc(arc: &StateArc, ops: &Vec<Operator>) -> Ident {
+    let out_idx = get_out_index_from_source(&(arc.source));
+    let src_op = get_op_id(&(arc.source.val));
+    let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
+
+    Ident::new(
+        &format!("{}__state", out_port.to_string()),
+        Span::call_site(),
+    )
+}
+
+
+fn generate_recv_var_for_state_arc(op: &i32) -> Ident {
+    Ident::new(
+        &format!("sf_{}_state", op.to_string()),
         Span::call_site(),
     )
 }
@@ -169,13 +188,11 @@ fn generate_out_arcs_vec(op: &i32, arcs: &Vec<DirectArc>, ops: &Vec<Operator>) -
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let arcs: Vec<&DirectArc> = compiled
-        .graph
-        .arcs
-        .direct
-        .iter()
-        .filter(|a| filter_env_arc(&a))
-        .collect();
+    let arcs: Vec<&DirectArc> =
+        compiled.graph.arcs.direct
+            .iter()
+            .filter(|a| filter_env_arc(&a))
+            .collect();
     let outs = arcs
         .iter()
         .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
@@ -183,8 +200,16 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
         .iter()
         .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
 
+    let state_outs = compiled.graph.arcs.state
+        .iter()
+        .map(|arc| generate_send_var_for_state_arc(&arc, &(compiled.graph.operators)));
+    let state_ins = compiled.graph.arcs.state
+        .iter()
+        .map(|arc| generate_recv_var_for_state_arc(&(arc.target)));
+
     quote!{
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
+        #(let (#state_outs, #state_ins) = std::sync::mpsc::channel();)*
     }
 }
 
@@ -256,6 +281,49 @@ fn filter_env_arc(arc: &DirectArc) -> bool {
     match arc.source.val {
         EnvironmentVal(_) => false,
         _ => true,
+    }
+}
+
+fn generate_sfn_call_code(op: &i32, sf: Ident, call_args: Vec<TokenStream>,
+                          r: Ident, send: TokenStream,
+                          num_input_arcs: usize, state_arcs: &Vec<StateArc>) -> TokenStream {
+    let is_sfn = match state_arcs.iter().find(|arc| &arc.target == op) {
+                        Some(_) => true,
+                        None => false,
+                    };
+    let call_code = quote!{#sf( #(#call_args),* )};
+    if is_sfn {
+        let state_chan = generate_recv_var_for_state_arc(&op);
+        let sfn_code = quote!{
+             let #r = state.#call_code;
+             #send
+         };
+
+        if num_input_arcs > 0 {
+          // global state goes along the lines of:
+          quote!{
+              let state = #state_chan.recv()?;
+              loop {
+                 #sfn_code
+              }
+          }
+        } else {
+          quote!{ #sfn_code; Ok(()) }
+        }
+    } else {
+        let sfn_code = quote!{
+            let #r = #call_code;
+            #send
+        };
+        if num_input_arcs > 0 {
+          quote!{
+              loop {
+                  #sfn_code
+              }
+          }
+        } else {
+          quote!{ #sfn_code; Ok(()) }
+        }
     }
 }
 
@@ -333,14 +401,9 @@ pub fn generate_sfns(
                     LocalVal(_) => quote!{ #code.recv()? },
                 })
                 .collect();
-            let call_code = quote!{ #sf( #(#call_args),* ) };
-            let sfn_code = quote!{ let #r = #call_code; #send };
 
-            if num_input_arcs > 0 {
-                quote!{ loop { #sfn_code } }
-            } else {
-                quote!{ #sfn_code; Ok(()) }
-            }
+            generate_sfn_call_code(&op.operatorId, r, call_args, sf, send, num_input_arcs,
+                                   &compiled.graph.arcs.state)
         })
         .collect();
 
