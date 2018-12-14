@@ -436,60 +436,83 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
 // As such, the only way to write such an operator is using tail recursion as shown below.
 //
 fn generate_ctrl_operator(num_args: usize) -> TokenStream {
-    let vars_in:Vec<Ident> = (0..num_args).map(|arg_idx| {
+    let ref vars_in:Vec<Ident> = (0..num_args).map(|arg_idx| {
                               Ident::new(&format!("var_in_{}", arg_idx.to_string()),
                                          Span::call_site()) })
                                           .collect();
-    let vars_out:Vec<Ident> = (0..num_args).map(|arg_idx| {
+    let ref vars_out:Vec<Ident> = (0..num_args).map(|arg_idx| {
                               Ident::new(&format!("var_out_{}", arg_idx.to_string()),
                                          Span::call_site()) })
                                            .collect();
-    let vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
+    let ref vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
                               Ident::new(&format!("var_{}", arg_idx.to_string()),
                                          Span::call_site()) })
                                        .collect();
-    let type_vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
+    let ref type_vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
                            Ident::new(&format!("T{}", arg_idx.to_string()),
                                       Span::call_site()) })
                                     .collect();
+
+    // The following block is necessary until https://github.com/dtolnay/quote/issues/8 is closed (which will hopefully happen eventually)
+    let type_vars2 = type_vars;
+    let type_vars3 = type_vars;
+    let type_vars4 = type_vars;
+    let type_vars5 = type_vars;
+    let type_vars6 = type_vars;
+    let vars2 = vars;
+    let vars3 = vars;
+    let vars4 = vars;
+    let vars5 = vars;
+    let vars6 = vars;
+    let vars_in2 = vars_in;
+    let vars_in3 = vars_in;
+    let vars_in4 = vars_in;
+    let vars_in5 = vars_in;
+    let vars_in6 = vars_in;
+    let vars_out2 = vars_out;
+    let vars_out3 = vars_out;
+    let vars_out4 = vars_out;
+    let vars_out5 = vars_out;
+    let vars_out6 = vars_out;
+
     quote!{
         fn ctrl_#num_args<#(#type_vars:Clone),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
-            #(#vars_in:&Receiver<#type_vars>),* ,
-            #(#vars_out:&Sender<#type_vars>),*) {
+            #(#vars_in:&Receiver<#type_vars2>),* ,
+            #(#vars_out:&Sender<#type_vars3>),*) {
           let (renew_next_time, count) = ctrl_inp.recv().unwrap();
-          let (#(#vars,)*) = ( #(#vars_in.recv().unwrap()),* );
+          let (#(#vars,)*) = ( #(#vars_in2.recv().unwrap()),* );
           for _ in 0..count {
-              #(#vars_out.send(#vars.clone()).unwrap();)*
+              #(#vars_out2.send(#vars2.clone()).unwrap();)*
           };
           ctrl_sf_#num_args(ctrl_inp,
-                            #(#vars_in),* ,
-                            #(#vars_out),* ,
+                            #(#vars_in3),* ,
+                            #(#vars_out3),* ,
                             renew_next_time,
-                            (#(#vars),*))
+                            (#(#vars3),*))
         }
 
         fn ctrl_sf_#num_args<T1:Clone,T2:Clone>(
             ctrl_inp:&Receiver<(bool,isize)>,
-            #(#vars_in:&Receiver<#type_vars>),* ,
-            #(#vars_out:&Sender<#type_vars>),* ,
+            #(#vars_in4:&Receiver<#type_vars4>),* ,
+            #(#vars_out4:&Sender<#type_vars5>),* ,
             renew: bool,
-            state_vars:(#(#type_vars),*)) {
+            state_vars:(#(#type_vars6),*)) {
           let (renew_next_time, count) = ctrl_inp.recv().unwrap();
-          let (#(#vars,)*) = if renew {
-                          ( #(#vars_in.recv().unwrap()),* )
+          let (#(#vars4,)*) = if renew {
+                          ( #(#vars_in5.recv().unwrap()),* )
                      } else {
                          // reuse the captured vars
                          state_vars
                      };
           for _ in 0..count {
-              #(#vars_out.send(#vars.clone()).unwrap();)*
+              #(#vars_out5.send(#vars5.clone()).unwrap();)*
           };
           ctrl_sf_#num_args(ctrl_inp,
-                            #(#vars_in),* ,
-                            #(#vars_out),* ,
+                            #(#vars_in6),* ,
+                            #(#vars_out6),* ,
                             renew_next_time,
-                            (#(#vars),*))
+                            (#(#vars6),*))
         }
     }
 }
@@ -506,8 +529,10 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
              })
              .collect();
 
+    let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
+
     compiled_algo.graph.operators =
-        compiled_algo.graph.operators
+        ops
           .drain(..)
           .map(|mut op|{
              if op.operatorType.qbNamespace == vec!["lang"] &&
