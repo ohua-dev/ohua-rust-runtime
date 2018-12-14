@@ -452,7 +452,6 @@ fn generate_ctrl_operator(num_args: usize) -> TokenStream {
                            Ident::new(&format!("T{}", arg_idx.to_string()),
                                       Span::call_site()) })
                                     .collect();
-
     quote!{
         fn ctrl_#num_args<#(#type_vars:Clone),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
@@ -496,24 +495,23 @@ fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 }
 
 fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
-    let predicate = |op| op.operatorType.qbNamespace == vec!["lang"] &&
-                         op.operatorType.qbName.as_str() ==  "ctrl" ;
     let code: Vec<TokenStream> =
         compiled_algo.graph.operators
              .iter()
-             .filter(predicate)
+             .filter(|op| op.operatorType.qbNamespace == vec!["lang"] &&
+                          op.operatorType.qbName.as_str() ==  "ctrl")
              .map(|op|{
                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                op.operatorType.qbNamespace = vec![];
-                op.operatorType.qbName = format!("ctrl_{}", num_args);
                 generate_ctrl_operator(num_args-1)
              })
              .collect();
+
     compiled_algo.graph.operators =
         compiled_algo.graph.operators
-          .iter()
-          .map(|op|{
-             if predicate(op) {
+          .drain(..)
+          .map(|mut op|{
+             if op.operatorType.qbNamespace == vec!["lang"] &&
+                op.operatorType.qbName.as_str() ==  "ctrl" {
                  let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
                  op.operatorType.qbNamespace = vec![];
                  op.operatorType.qbName = format!("ctrl_{}", num_args);
