@@ -1,10 +1,10 @@
 ns some_ns;
 
-use sf stringfunctions (generate_string, recv_number, combine, printout);
+use sf stringfunctions::{generate_string, recv_number, combine, printout};
 
 fn main() {
     let s = generate_string();
-    let func = fn (num) { combine(s, num) };
+    let func = |num| { combine(s, num) };
     let res = func(recv_number());
     printout(res)
 }

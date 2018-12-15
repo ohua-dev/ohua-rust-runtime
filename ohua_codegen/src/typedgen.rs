@@ -86,7 +86,7 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> String 
         ));
     let computed_idx = match &(op_spec.nodeType) {
         NodeType::FunctionNode => {
-            assert!(idx == &-1);
+            assert!(idx == &0);
             &0
         }
         NodeType::OperatorNode => {
@@ -238,12 +238,14 @@ fn generate_operator_code(op_name:Ident, call_args:Vec<TokenStream>) -> TokenStr
 }
 
 pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
-    let ops = compiled.graph.operators.iter().filter(|o| {
-        (match o.nodeType {
-            NodeType::OperatorNode => true,
-            _ => false,
-        })
-    });
+    let ops = compiled.graph.operators
+              .iter()
+              .filter(|o| {
+                (match o.nodeType {
+                    NodeType::OperatorNode => true,
+                    _ => false,
+                })
+            });
     let op_codes: Vec<TokenStream> = ops
         .map(|op| {
             let mut call_args =
@@ -402,7 +404,7 @@ pub fn generate_sfns(
                 })
                 .collect();
 
-            generate_sfn_call_code(&op.operatorId, r, call_args, sf, send, num_input_arcs,
+            generate_sfn_call_code(&op.operatorId, sf, call_args, r, send, num_input_arcs,
                                    &compiled.graph.arcs.state)
         })
         .collect();
