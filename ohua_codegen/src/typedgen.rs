@@ -1,9 +1,11 @@
 #![allow(unused_doc_comments)]
+use ohua_types::Envs::NumericLit;
+use ohua_types::Envs::EnvRefLit;
 use ohua_types::ArcIdentifier;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{Receiver, Sender};
 
-use ohua_types::ValueType::{EnvironmentVal, LocalVal};
+use ohua_types::ValueType::{local, env};
 use ohua_types::{NodeType, Arcs, DirectArc, CompoundArc, StateArc, ArcSource, OhuaData, Operator, OperatorType, ValueType};
 
 use proc_macro2::{Ident, Span, TokenStream};
@@ -13,8 +15,11 @@ use syn::Expr;
 
 fn get_op_id(val: &ValueType) -> &i32 {
     match val {
-        ValueType::EnvironmentVal(i) => i,
-        ValueType::LocalVal(i) => &(i.operator),
+        ValueType::env(e) => match e {
+                EnvRefLit(i) => i,
+                _ => unimplemented!(),
+            },
+        ValueType::local(i) => &(i.operator),
     }
 }
 
@@ -27,8 +32,8 @@ fn get_num_inputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
 fn get_num_outputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
     arcs.iter()
         .filter(|arc| match &(arc.source.val) {
-            EnvironmentVal(i) => unimplemented!(),
-            LocalVal(a_id) => &(a_id.operator) == op,
+            env(_) => unimplemented!(),
+            local(a_id) => &(a_id.operator) == op,
         })
         .count()
 }
@@ -37,12 +42,12 @@ fn get_outputs(op: &i32, arcs: &Vec<DirectArc>) -> Vec<i32> {
     let mut t: Vec<i32> = arcs
         .iter()
         .filter(|arc| match &(arc.source.val) {
-            EnvironmentVal(i) => unimplemented!(),
-            LocalVal(a_id) => &(a_id.operator) == op,
+            env(_) => unimplemented!(),
+            local(a_id) => &(a_id.operator) == op,
         })
         .map(|arc| match &(arc.source.val) {
-            EnvironmentVal(i) => unimplemented!(),
-            LocalVal(a_id) => a_id.index,
+            env(_) => unimplemented!(),
+            local(a_id) => a_id.index,
         })
         .collect();
     t.sort();
@@ -53,8 +58,8 @@ fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
     let t = arcs
         .iter()
         .filter(|arc| match &(arc.source.val) {
-            EnvironmentVal(i) => false,
-            LocalVal(a_id) => &(a_id.operator) == op,
+            env(_) => false,
+            local(a_id) => &(a_id.operator) == op,
         })
         .collect();
     t
@@ -70,8 +75,11 @@ fn get_in_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
 
 fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     match src.val {
-        EnvironmentVal(ref i) => i,
-        LocalVal(ref arc_id) => &arc_id.index,
+        env(ref e) => match e {
+            EnvRefLit(ref i) => i,
+            _ => unimplemented!()
+        },
+        local(ref arc_id) => &arc_id.index,
     }
 }
 
@@ -168,12 +176,16 @@ fn generate_in_arcs_vec(
         .iter()
         .filter(|arc| arc.target.index != -1)
         .map(|a| match a.source.val {
-            EnvironmentVal(i) => algo_call_args
-                .iter()
-                .nth(i as usize)
-                .expect(&format!("Invariant broken! {}, {}", i, algo_call_args.len()).to_string())
-                .into_token_stream(),
-            LocalVal(ref arc) => {
+            env(ref e) => match e {
+                EnvRefLit(i) =>
+                    algo_call_args
+                        .iter()
+                        .nth(*i as usize)
+                        .expect(&format!("Invariant broken! {}, {}", i, algo_call_args.len()).to_string())
+                        .into_token_stream(),
+                _ => unimplemented!(),
+            }
+            local(ref arc) => {
                 generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
             }
         })
@@ -281,7 +293,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
 
 fn filter_env_arc(arc: &DirectArc) -> bool {
     match arc.source.val {
-        EnvironmentVal(_) => false,
+        env(_) => false,
         _ => true,
     }
 }
@@ -353,14 +365,20 @@ pub fn generate_sfns(
             let mut seen_env_arcs = HashMap::new();
             let mut seen_local_arc = false;
             for pos in 0..zipped_in_arcs.len() {
-                if let EnvironmentVal(x) = zipped_in_arcs[pos].0.source.val {
-                    if let Some(old_pos) = seen_env_arcs.insert(x, pos) {
-                        // the value is present, clone the old one
-                        let old_ident = zipped_in_arcs[old_pos].1.clone();
-                        zipped_in_arcs[old_pos].1 = quote!{ #old_ident.clone() };
+                match zipped_in_arcs[pos].0.source.val{
+                    env(ref e) => match e {
+                        EnvRefLit(x) => {
+                            if let Some(old_pos) = seen_env_arcs.insert(x, pos) {
+                                // the value is present, clone the old one
+                                let old_ident = zipped_in_arcs[old_pos].1.clone();
+                                zipped_in_arcs[old_pos].1 = quote!{ #old_ident.clone() };
+                            }
+                        },
+                        _ => unimplemented!(),
+                    },
+                    local(_) => {
+                        seen_local_arc = true;
                     }
-                } else {
-                    seen_local_arc = true;
                 }
             }
 
@@ -399,8 +417,8 @@ pub fn generate_sfns(
             let call_args: Vec<TokenStream> = zipped_in_arcs
                 .iter()
                 .map(|(orig_arc, code)| match orig_arc.source.val {
-                    EnvironmentVal(_) => code.clone().clone(),
-                    LocalVal(_) => quote!{ #code.recv()? },
+                    env(_) => code.clone().clone(),
+                    local(_) => quote!{ #code.recv()? },
                 })
                 .collect();
 
@@ -624,7 +642,7 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
         .direct
         .iter()
         .filter(|a| {
-            if let ValueType::EnvironmentVal(_) = a.source.val {
+            if let ValueType::env(_) = a.source.val {
                 true
             } else {
                 false
@@ -657,19 +675,43 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
         });
 
         // reroute any env-arcs with matching id
-        for arc in &mut compiled_algo.graph.arcs.direct {
-            if let ValueType::EnvironmentVal(env_id) = arc.source.val {
-                if i == env_id {
-                    arc.source = ArcSource {
-                        s_type: "local".into(),
-                        val: ValueType::LocalVal(ArcIdentifier {
-                            operator: new_op_id_base + i,
-                            index: -1,
-                        }),
+        // for arc in &mut compiled_algo.graph.arcs.direct {
+        //     if let env(ref mut e) = arc.source.val {
+        //         if let EnvRefLit(env_id) = e {
+        //             if i == *env_id {
+        //                 arc.source = ArcSource {
+        //                     s_type: "local".into(),
+        //                     val: ValueType::local(ArcIdentifier {
+        //                         operator: new_op_id_base + i,
+        //                         index: -1,
+        //                     }),
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        let mut d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
+        compiled_algo.graph.arcs.direct =
+                d_arcs
+                .drain(..)
+                .map(|mut arc| {
+                    if let env(e) = arc.source.val {
+                        if let EnvRefLit(env_id) = e {
+                            if i == env_id {
+                                arc.source = ArcSource {
+                                        s_type: "local".into(),
+                                        val: ValueType::local(ArcIdentifier {
+                                            operator: new_op_id_base + i,
+                                            index: -1,
+                                        }),
+                                }
+                            }
+                        }
                     }
-                }
-            }
-        }
+                    arc
+                })
+                .collect();
+
 
         compiled_algo.graph.arcs.direct.push(DirectArc {
             target: ArcIdentifier {
@@ -678,7 +720,7 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
             },
             source: ArcSource {
                 s_type: "env".into(),
-                val: ValueType::EnvironmentVal(i),
+                val: ValueType::env(EnvRefLit(i)),
             },
         });
     }
@@ -761,7 +803,7 @@ mod tests {
                         },
                         source: ArcSource {
                             s_type: "".to_string(),
-                            val: ValueType::LocalVal(ArcIdentifier {
+                            val: ValueType::local(ArcIdentifier {
                                 operator: 0,
                                 index: out_idx,
                             }),
@@ -870,7 +912,7 @@ mod tests {
                         },
                         source: ArcSource {
                             s_type: "".to_string(),
-                            val: ValueType::EnvironmentVal(0),
+                            val: ValueType::env(EnvRefLit(0)),
                         },
                     }],
                     compound: vec![],

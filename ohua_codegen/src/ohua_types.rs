@@ -98,11 +98,20 @@ pub struct StateArc {
 }
 
 /// Describes the type of an Arc source. This can either be an environment value _or_ a local value (another operator).
-#[serde(untagged)]
 #[derive(Deserialize, Debug)]
+#[serde(tag = "type", content = "val")]
 pub enum ValueType {
-    EnvironmentVal(i32),
-    LocalVal(ArcIdentifier),
+    env(Envs),
+    local(ArcIdentifier),
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "tag", content = "contents")]
+pub enum Envs {
+    NumericLit(i32),
+    EnvRefLit(i32),
+    FunRefLit(String),
+    UnitLit()
 }
 
 /// Source for an Arc.
