@@ -675,43 +675,141 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
         });
 
         // reroute any env-arcs with matching id
-        // for arc in &mut compiled_algo.graph.arcs.direct {
-        //     if let env(ref mut e) = arc.source.val {
-        //         if let EnvRefLit(env_id) = e {
-        //             if i == *env_id {
-        //                 arc.source = ArcSource {
-        //                     s_type: "local".into(),
-        //                     val: ValueType::local(ArcIdentifier {
-        //                         operator: new_op_id_base + i,
-        //                         index: -1,
-        //                     }),
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-        let mut d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
-        compiled_algo.graph.arcs.direct =
-                d_arcs
-                .drain(..)
-                .map(|mut arc| {
-                    if let env(e) = arc.source.val {
-                        if let EnvRefLit(env_id) = e {
-                            if i == env_id {
+        for arc in &mut compiled_algo.graph.arcs.direct {
+            if let env(mut e) = arc.source.val {
+                if let EnvRefLit(env_id) = e {
+                    if i == env_id {
+                        arc.source = ArcSource {
+                            s_type: "local".into(),
+                            val: ValueType::local(ArcIdentifier {
+                                operator: new_op_id_base + i,
+                                index: -1,
+                            }),
+                        }
+                    }
+                }
+            } else {
+                arc.source = arc.source.clone();
+            }
+        }
+
+        for arc in &mut compiled_algo.graph.arcs.direct {
+            let mut b = &arc.source;
+            let mut v = &b.val;
+            match v {
+                env(e) => {
+                    match e {
+                        EnvRefLit(env_id) => {
+                            if i == *env_id {
                                 arc.source = ArcSource {
                                         s_type: "local".into(),
                                         val: ValueType::local(ArcIdentifier {
                                             operator: new_op_id_base + i,
                                             index: -1,
-                                        }),
-                                }
+                                    })};
                             }
                         }
+                        _ => ()
                     }
-                    arc
-                })
-                .collect();
+                }
+                _ => ()
+            }
+            // if let env(mut e) = arc.source.val {
+            //     if let EnvRefLit(env_id) = e {
+            //         if i == env_id {
+            //             arc.source = ArcSource {
+            //                 s_type: "local".into(),
+            //                 val: ValueType::local(ArcIdentifier {
+            //                     operator: new_op_id_base + i,
+            //                     index: -1,
+            //                 }),
+            //             }
+            //         }
+            //     }
+            // } else {
+            //     arc.source = arc.source.clone();
+            // }
+        }
 
+
+        // let mut d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
+        // compiled_algo.graph.arcs.direct =
+        //         d_arcs
+        //         .drain(..)
+        //         .map(|mut arc| {
+        //             let v: &ValueType = &arc.source.val;
+        //             match v {
+        //                 env(e) => {
+        //                     match e {
+        //                         EnvRefLit(env_id) => {
+        //                             if i == *env_id {
+        //                                 DirectArc {
+        //                                     target: arc.target.clone
+        //                                   source = ArcSource {
+        //                                         s_type: "local".into(),
+        //                                         val: ValueType::local(ArcIdentifier {
+        //                                             operator: new_op_id_base + i,
+        //                                             index: -1,
+        //                                         }),
+        //                                 };
+        //                             } else {
+        //                                 arc
+        //                             }
+        //                         },
+        //                         _ => arc
+        //                     }
+        //                 },
+        //                 _ => arc
+        //             }
+        //             // if let env(e) = arc.source.val {
+        //             //     if let EnvRefLit(env_id) = e {
+        //             //         if i == env_id {
+        //             //             arc.source = ArcSource {
+        //             //                     s_type: "local".into(),
+        //             //                     val: ValueType::local(ArcIdentifier {
+        //             //                         operator: new_op_id_base + i,
+        //             //                         index: -1,
+        //             //                     }),
+        //             //             }
+        //             //         }
+        //             //     }
+        //             // } else {
+        //             //
+        //             // }
+        //             // arc
+        //         })
+        //         .collect();
+
+        // let d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
+        // compiled_algo.graph.arcs.direct =
+        //         d_arcs
+        //         .iter()
+        //         .map(|arc| {
+        //             if let env(e) = arc.source.val {
+        //                 if let EnvRefLit(env_id) = e {
+        //                     if i == env_id {
+        //                         &DirectArc {
+        //                             target: arc.target,
+        //                             source: ArcSource {
+        //                                 s_type: "local".into(),
+        //                                 val: ValueType::local(ArcIdentifier {
+        //                                     operator: new_op_id_base + i,
+        //                                     index: -1,
+        //                                 }),
+        //                             }
+        //                         }
+        //                     } else {
+        //                         arc
+        //                     }
+        //                 } else {
+        //                     arc
+        //                 }
+        //             } else {
+        //                 arc
+        //             }
+        //         })
+        //         .collect()
+        //         .clone();
 
         compiled_algo.graph.arcs.direct.push(DirectArc {
             target: ArcIdentifier {

@@ -79,7 +79,7 @@ pub struct DirectArc {
 }
 
 /// A local Arc endpoint, an operator.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ArcIdentifier {
     pub operator: i32,
     pub index: i32,
@@ -98,14 +98,14 @@ pub struct StateArc {
 }
 
 /// Describes the type of an Arc source. This can either be an environment value _or_ a local value (another operator).
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "val")]
 pub enum ValueType {
     env(Envs),
     local(ArcIdentifier),
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "tag", content = "contents")]
 pub enum Envs {
     NumericLit(i32),
@@ -115,7 +115,7 @@ pub enum Envs {
 }
 
 /// Source for an Arc.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ArcSource {
     #[serde(rename(deserialize = "type"))]
     pub s_type: String,
