@@ -123,76 +123,90 @@ pub struct SfDependency {
     pub qbName: String,
 }
 
-// impl fmt::Display for OhuaData {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         let mut sf_deps = String::new();
-//         for dep in &self.sfDependencies {
-//             sf_deps += format!("{}, ", dep).as_str();
-//         }
-//
-//         write!(
-//             f,
-//             "OhuaData {{graph: {}, mainArity: {}, sfDependencies: vec![{}]}}",
-//             self.graph, self.mainArity, sf_deps
-//         )
-//     }
-// }
-//
-// impl fmt::Display for DFGraph {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         let mut ops = String::new();
-//         for op in &self.operators {
-//             ops += format!("{}, ", op).as_str();
-//         }
-//
-//         let mut arcs = String::new();
-//         for arc in &self.arcs {
-//             arcs += format!("{}, ", arc).as_str();
-//         }
-//
-//         let mut inputs = String::new();
-//         for inp in &self.input_targets {
-//             inputs += format!("{}, ", inp).as_str();
-//         }
-//
-//         write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], return_arc: {}, input_targets: vec![{}]}}", ops, arcs, &self.return_arc, inputs)
-//     }
-// }
-//
-// impl fmt::Display for Operator {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "Operator {{operatorId: {}, operatorType: {}}}",
-//             self.operatorId, self.operatorType
-//         )
-//     }
-// }
-//
-// impl OperatorType {
-//     pub fn function_name(&self) -> String {
-//         let mut name = String::new();
-//         for item in &self.qbNamespace {
-//             name += item.as_str();
-//             name += "::";
-//         }
-//         name += self.qbName.as_str();
-//
-//         name
-//     }
-// }
-//
-// impl fmt::Display for OperatorType {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         let mut namesp = String::new();
-//         for space in &self.qbNamespace {
-//             namesp += format!("String::from(\"{}\"), ", space).as_str();
-//         }
-//
-//         write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\"), func: Box::new({fn}), op_type: {ty}}}", namesp = namesp, name = self.qbName, fn = self.func, ty = self.op_type)
-//     }
-// }
-//
+impl fmt::Display for OhuaData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut sf_deps = String::new();
+        for dep in &self.sfDependencies {
+            sf_deps += format!("{}, ", dep).as_str();
+        }
+
+        write!(
+            f,
+            "OhuaData {{graph: {}, mainArity: {}, sfDependencies: vec![{}]}}",
+            self.graph, self.mainArity, sf_deps
+        )
+    }
+}
+
+impl fmt::Display for DFGraph {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut ops = String::new();
+        for op in &self.operators {
+            ops += format!("{}, ", op).as_str();
+        }
+
+        let mut arcs = String::new();
+        for arc in &self.arcs.direct {
+            arcs += format!("{}, ", arc).as_str();
+        }
+
+        let mut states = String::new();
+        for state in &self.arcs.state {
+            states += format!("{}, ", state).as_str();
+        }
+
+        let mut inputs = String::new();
+        for inp in &self.input_targets {
+            inputs += format!("{}, ", inp).as_str();
+        }
+
+        write!(f, "DFGraph {{operators: vec![{}], arcs: vec![{}], states: vec![{}], return_arc: {}, input_targets: vec![{}]}}", ops, arcs, states, &self.return_arc, inputs)
+    }
+}
+
+impl fmt::Display for Operator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Operator {{operatorId: {}, operatorType: {}, nodeType: {}}}",
+            self.operatorId, self.operatorType, self.nodeType
+        )
+    }
+}
+
+impl fmt::Display for NodeType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            NodeType::FunctionNode => write!(f, "FunctionNode"),
+            NodeType::OperatorNode => write!(f, "OperatorNode"),
+        }
+    }
+}
+
+impl OperatorType {
+    pub fn function_name(&self) -> String {
+        let mut name = String::new();
+        for item in &self.qbNamespace {
+            name += item.as_str();
+            name += "::";
+        }
+        name += self.qbName.as_str();
+
+        name
+    }
+}
+
+impl fmt::Display for OperatorType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut namesp = String::new();
+        for space in &self.qbNamespace {
+            namesp += format!("String::from(\"{}\"), ", space).as_str();
+        }
+
+        write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\")}}", namesp = namesp, name = self.qbName)
+    }
+}
+
 // impl fmt::Display for OpType {
 //     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 //         match *self {
@@ -201,57 +215,69 @@ pub struct SfDependency {
 //         }
 //     }
 // }
-//
-// impl fmt::Display for Arc {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "Arc {{target: {}, source: {}}}",
-//             self.target, self.source
-//         )
-//     }
-// }
-//
-// impl fmt::Display for ArcIdentifier {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "ArcIdentifier {{operator: {}, index: {}}}",
-//             self.operator, self.index
-//         )
-//     }
-// }
-//
-// impl fmt::Display for ValueType {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match self {
-//             &ValueType::EnvironmentVal(x) => write!(f, "ValueType::EnvironmentVal({})", x),
-//             &ValueType::LocalVal(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
-//         }
-//     }
-// }
-//
-// impl fmt::Display for ArcSource {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "ArcSource {{s_type: String::from(\"{}\"), val: {}}}",
-//             self.s_type, self.val
-//         )
-//     }
-// }
-//
-// impl fmt::Display for SfDependency {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         let mut namesp = String::new();
-//         for space in &self.qbNamespace {
-//             namesp += format!("String::from(\"{}\"), ", space).as_str();
-//         }
-//
-//         write!(
-//             f,
-//             "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}",
-//             namesp, self.qbName
-//         )
-//     }
-// }
+
+impl fmt::Display for DirectArc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "DirectArc {{target: {}, source: {}}}",
+            self.target, self.source
+        )
+    }
+}
+
+impl fmt::Display for StateArc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "StateArc {{target: {}, source: {}}}",
+            self.target, self.source
+        )
+    }
+}
+
+impl fmt::Display for ArcIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "ArcIdentifier {{operator: {}, index: {}}}",
+            self.operator, self.index
+        )
+    }
+}
+
+impl fmt::Display for ArcSource {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ArcSource::env(ref x) => write!(f, "ValueType::EnvironmentVal({})", x),
+            &ArcSource::local(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
+        }
+    }
+}
+
+impl fmt::Display for Envs {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Envs::NumericLit(i) => write!(f, "NumericLit({})", i),
+            Envs::EnvRefLit(i) => write!(f, "EnvRefLit({})", i),
+            Envs::FunRefLit(s) => write!(f, "FunRefLit({})", s),
+            Envs::UnitLit() => write!(f, "UnitLit()"),
+        }
+    }
+}
+
+
+impl fmt::Display for SfDependency {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut namesp = String::new();
+        for space in &self.qbNamespace {
+            namesp += format!("String::from(\"{}\"), ", space).as_str();
+        }
+
+        write!(
+            f,
+            "SfDependency {{qbNamespace: vec![{}], qbName: String::from(\"{}\")}}",
+            namesp, self.qbName
+        )
+    }
+}

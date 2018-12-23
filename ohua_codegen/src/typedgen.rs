@@ -7,8 +7,9 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use ohua_types::ArcSource::{local, env};
 use ohua_types::{NodeType, Arcs, DirectArc, CompoundArc, StateArc, ArcSource, OhuaData, Operator, OperatorType};
+use lang::{generate_ctrl_operator, generate_nth};
 
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream, Literal};
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::Expr;
@@ -183,7 +184,10 @@ fn generate_in_arcs_vec(
                         .nth(*i as usize)
                         .expect(&format!("Invariant broken! Env arg idx: {}, Algo call args length: {}", i, algo_call_args.len()).to_string())
                         .into_token_stream(),
-                NumericLit(num) => quote! { #num },
+                NumericLit(num) => {
+                        let n = Literal::i32_unsuffixed(*num);
+                        quote! { #n }
+                },
                 _ => unimplemented!("generate_in_arcs_vec -> other literals"),
             }
             local(ref arc) => {
@@ -508,111 +512,25 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     }
 }
 
-//
-// The ctrl operator needs to be stateful but can not define its own state.
-// The state of the operator would have to capture the data retrieved from the
-// arcs of the vars. But what would be their type???
-// For a generic backend, we don't ever deal with types. We rely solely on the
-// type inference mechanisms of the target language.
-// As such, we can not write or even generate a function that creates this state.
-// THIS IS A GENERAL INSIGHT: state in operators (which are meant to be polymorph with
-// respect to the data in the graph) can never contain anything that is related to the
-// data in the graph!
-// As such, the only way to write such an operator is using tail recursion as shown below.
-//
-fn generate_ctrl_operator(num_args: usize) -> TokenStream {
-    let ref vars_in:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                              Ident::new(&format!("var_in_{}", arg_idx.to_string()),
-                                         Span::call_site()) })
-                                          .collect();
-    let ref vars_out:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                              Ident::new(&format!("var_out_{}", arg_idx.to_string()),
-                                         Span::call_site()) })
-                                           .collect();
-    let ref vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                              Ident::new(&format!("var_{}", arg_idx.to_string()),
-                                         Span::call_site()) })
-                                       .collect();
-    let ref type_vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                           Ident::new(&format!("T{}", arg_idx.to_string()),
-                                      Span::call_site()) })
-                                    .collect();
-
-    // The following block is necessary until https://github.com/dtolnay/quote/issues/8 is closed (which will hopefully happen eventually)
-    let type_vars2 = type_vars;
-    let type_vars3 = type_vars;
-    let type_vars4 = type_vars;
-    let type_vars5 = type_vars;
-    let type_vars6 = type_vars;
-    let vars2 = vars;
-    let vars3 = vars;
-    let vars4 = vars;
-    let vars5 = vars;
-    let vars6 = vars;
-    let vars_in2 = vars_in;
-    let vars_in3 = vars_in;
-    let vars_in4 = vars_in;
-    let vars_in5 = vars_in;
-    let vars_in6 = vars_in;
-    let vars_out2 = vars_out;
-    let vars_out3 = vars_out;
-    let vars_out4 = vars_out;
-    let vars_out5 = vars_out;
-    let vars_out6 = vars_out;
-
-    quote!{
-        fn ctrl_#num_args<#(#type_vars:Clone),*>(
-            ctrl_inp:&Receiver<(bool,isize)>,
-            #(#vars_in:&Receiver<#type_vars2>),* ,
-            #(#vars_out:&Sender<#type_vars3>),*) {
-          let (renew_next_time, count) = ctrl_inp.recv().unwrap();
-          let (#(#vars,)*) = ( #(#vars_in2.recv().unwrap()),* );
-          for _ in 0..count {
-              #(#vars_out2.send(#vars2.clone()).unwrap();)*
-          };
-          ctrl_sf_#num_args(ctrl_inp,
-                            #(#vars_in3),* ,
-                            #(#vars_out3),* ,
-                            renew_next_time,
-                            (#(#vars3),*))
-        }
-
-        fn ctrl_sf_#num_args<T1:Clone,T2:Clone>(
-            ctrl_inp:&Receiver<(bool,isize)>,
-            #(#vars_in4:&Receiver<#type_vars4>),* ,
-            #(#vars_out4:&Sender<#type_vars5>),* ,
-            renew: bool,
-            state_vars:(#(#type_vars6),*)) {
-          let (renew_next_time, count) = ctrl_inp.recv().unwrap();
-          let (#(#vars4,)*) = if renew {
-                          ( #(#vars_in5.recv().unwrap()),* )
-                     } else {
-                         // reuse the captured vars
-                         state_vars
-                     };
-          for _ in 0..count {
-              #(#vars_out5.send(#vars5.clone()).unwrap();)*
-          };
-          ctrl_sf_#num_args(ctrl_inp,
-                            #(#vars_in6),* ,
-                            #(#vars_out6),* ,
-                            renew_next_time,
-                            (#(#vars6),*))
-        }
-    }
-}
-
+// TODO: generalize this
 fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
-    let code: Vec<TokenStream> =
+    let mut num_args: Vec<usize> =
         compiled_algo.graph.operators
              .iter()
-             .filter(|op| op.operatorType.qbNamespace == vec!["ohua", "lang"] &&
+             .filter(|op| op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
                           op.operatorType.qbName.as_str() ==  "ctrl")
              .map(|op|{
                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                generate_ctrl_operator(num_args-1)
-             })
+                num_args-1
+            })
              .collect();
+    num_args.sort();
+    num_args.dedup();
+
+    let code: Vec<TokenStream> =
+        num_args.drain(..)
+                .map(|num| generate_ctrl_operator(num))
+                .collect();
 
     let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
 
@@ -620,11 +538,70 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
         ops
           .drain(..)
           .map(|mut op|{
-             if op.operatorType.qbNamespace == vec!["ohua", "lang"] &&
+             if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
                 op.operatorType.qbName.as_str() ==  "ctrl" {
                  let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
                  op.operatorType.qbNamespace = vec![];
-                 op.operatorType.qbName = format!("ctrl_{}", num_args);
+                 op.operatorType.qbName = format!("ctrl_{}", num_args-1);
+            }
+            op
+          })
+          .collect();
+
+    quote!{
+        #(#code)*
+    }
+}
+
+fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
+    let mut num_args: Vec<(i32,i32)> =
+        compiled_algo.graph.operators
+             .iter()
+             .filter(|op| op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
+                          op.operatorType.qbName.as_str() ==  "nth")
+             .map(|op|{
+                let mut in_arcs = get_in_arcs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+                assert!(in_arcs.len() == 3);
+                in_arcs.sort_by_key(|arc| { arc.target.index } );
+                let num_arc = in_arcs.get(0).expect("Impossible!");
+                let len_arc = in_arcs.get(1).expect("Impossible");
+                let num = match num_arc.source {
+                    env(ref e) => match e {
+                        NumericLit(i) => *i,
+                        _ => panic!("Compiler invariant broken!"),
+                    },
+                    _ => panic!("Compiler invariant broken!"),
+                };
+                let len = match len_arc.source {
+                    env(ref e) => match e {
+                        NumericLit(i) => *i,
+                        _ => panic!("Compiler invariant broken!"),
+                    },
+                    _ => panic!("Compiler invariant broken!"),
+                };
+                assert!(num < len, "Compiler invariant broken!");
+                (num, len)
+            })
+             .collect();
+    num_args.sort();
+    num_args.dedup();
+
+    let code: Vec<TokenStream> =
+        num_args.drain(..)
+                .map(|(num, len)| generate_nth(num, len))
+                .collect();
+
+    let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
+
+    compiled_algo.graph.operators =
+        ops
+          .drain(..)
+          .map(|mut op|{
+             if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
+                op.operatorType.qbName.as_str() ==  "nth" {
+                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+                 op.operatorType.qbNamespace = vec![];
+                 op.operatorType.qbName = format!("nth_{}", num_args-1);
             }
             op
           })

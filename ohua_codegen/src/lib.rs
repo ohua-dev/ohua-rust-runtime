@@ -24,6 +24,7 @@ mod ohua_types;
 mod ohuac;
 mod parse;
 mod typedgen;
+mod lang;
 
 use typedgen::*;
 use errors::*;
