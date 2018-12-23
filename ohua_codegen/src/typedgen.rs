@@ -1,15 +1,17 @@
 #![allow(unused_doc_comments)]
-use ohua_types::Envs::NumericLit;
-use ohua_types::Envs::EnvRefLit;
 use ohua_types::ArcIdentifier;
+use ohua_types::Envs::EnvRefLit;
+use ohua_types::Envs::NumericLit;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{Receiver, Sender};
 
-use ohua_types::ArcSource::{local, env};
-use ohua_types::{NodeType, Arcs, DirectArc, CompoundArc, StateArc, ArcSource, OhuaData, Operator, OperatorType};
 use lang::{generate_ctrl_operator, generate_nth};
+use ohua_types::ArcSource::{env, local};
+use ohua_types::{
+    ArcSource, Arcs, CompoundArc, DirectArc, NodeType, OhuaData, Operator, OperatorType, StateArc,
+};
 
-use proc_macro2::{Ident, Span, TokenStream, Literal};
+use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::Expr;
@@ -17,9 +19,9 @@ use syn::Expr;
 fn get_op_id(val: &ArcSource) -> &i32 {
     match val {
         ArcSource::env(e) => match e {
-                EnvRefLit(i) => i,
-                _ => unimplemented!("get_op_id -> other literals"),
-            },
+            EnvRefLit(i) => i,
+            _ => unimplemented!("get_op_id -> other literals"),
+        },
         ArcSource::local(i) => &(i.operator),
     }
 }
@@ -78,7 +80,7 @@ fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     match src {
         env(ref e) => match e {
             EnvRefLit(ref i) => i,
-            _ => unimplemented!("get_out_index_from_source -> other literals")
+            _ => unimplemented!("get_out_index_from_source -> other literals"),
         },
         local(ref arc_id) => &arc_id.index,
     }
@@ -154,12 +156,8 @@ fn generate_send_var_for_state_arc(arc: &StateArc, ops: &Vec<Operator>) -> Ident
     )
 }
 
-
 fn generate_recv_var_for_state_arc(op: &i32) -> Ident {
-    Ident::new(
-        &format!("sf_{}_state", op.to_string()),
-        Span::call_site(),
-    )
+    Ident::new(&format!("sf_{}_state", op.to_string()), Span::call_site())
 }
 
 /**
@@ -178,18 +176,24 @@ fn generate_in_arcs_vec(
         .filter(|arc| arc.target.index != -1)
         .map(|a| match a.source {
             env(ref e) => match e {
-                EnvRefLit(i) =>
-                    algo_call_args
-                        .iter()
-                        .nth(*i as usize)
-                        .expect(&format!("Invariant broken! Env arg idx: {}, Algo call args length: {}", i, algo_call_args.len()).to_string())
-                        .into_token_stream(),
+                EnvRefLit(i) => algo_call_args
+                    .iter()
+                    .nth(*i as usize)
+                    .expect(
+                        &format!(
+                            "Invariant broken! Env arg idx: {}, Algo call args length: {}",
+                            i,
+                            algo_call_args.len()
+                        )
+                        .to_string(),
+                    )
+                    .into_token_stream(),
                 NumericLit(num) => {
-                        let n = Literal::i32_unsuffixed(*num);
-                        quote! { #n }
-                },
+                    let n = Literal::i32_unsuffixed(*num);
+                    quote! { #n }
+                }
                 _ => unimplemented!("generate_in_arcs_vec -> other literals"),
-            }
+            },
             local(ref arc) => {
                 generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
             }
@@ -205,11 +209,13 @@ fn generate_out_arcs_vec(op: &i32, arcs: &Vec<DirectArc>, ops: &Vec<Operator>) -
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let arcs: Vec<&DirectArc> =
-        compiled.graph.arcs.direct
-            .iter()
-            .filter(|a| filter_env_arc(&a))
-            .collect();
+    let arcs: Vec<&DirectArc> = compiled
+        .graph
+        .arcs
+        .direct
+        .iter()
+        .filter(|a| filter_env_arc(&a))
+        .collect();
     let outs = arcs
         .iter()
         .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
@@ -217,14 +223,20 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
         .iter()
         .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
 
-    let state_outs = compiled.graph.arcs.state
+    let state_outs = compiled
+        .graph
+        .arcs
+        .state
         .iter()
         .map(|arc| generate_send_var_for_state_arc(&arc, &(compiled.graph.operators)));
-    let state_ins = compiled.graph.arcs.state
+    let state_ins = compiled
+        .graph
+        .arcs
+        .state
         .iter()
         .map(|arc| generate_recv_var_for_state_arc(&(arc.target)));
 
-    quote!{
+    quote! {
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
         #(let (#state_outs, #state_ins) = std::sync::mpsc::channel();)*
     }
@@ -242,11 +254,11 @@ fn get_call_reference(op_type: &OperatorType) -> Ident {
 // The main point is this: I intended to replace/extend the `loop` construct with something that
 // interfaces with a scheduler. Let's see if I can get rid of this and accomplish the same just
 // via the arcs.
-fn generate_operator_code(op_name:Ident, call_args:Vec<TokenStream>) -> TokenStream {
+fn generate_operator_code(op_name: Ident, call_args: Vec<TokenStream>) -> TokenStream {
     if op_name.to_string().starts_with("lang/ctrl") {
-        quote!{ #op_name(#(&#call_args),*)?; }
+        quote! { #op_name(#(&#call_args),*)?; }
     } else {
-        quote!{
+        quote! {
             loop{
                 #op_name(#(&#call_args),*)?;
             }
@@ -255,18 +267,19 @@ fn generate_operator_code(op_name:Ident, call_args:Vec<TokenStream>) -> TokenStr
 }
 
 pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
-    let ops = compiled.graph.operators
-              .iter()
-              .filter(|o| {
-                (match o.nodeType {
-                    NodeType::OperatorNode => true,
-                    _ => false,
-                })
-            });
+    let ops = compiled.graph.operators.iter().filter(|o| {
+        (match o.nodeType {
+            NodeType::OperatorNode => true,
+            _ => false,
+        })
+    });
     let op_codes: Vec<TokenStream> = ops
         .map(|op| {
-            let mut call_args =
-                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs.direct), &Punctuated::new()); // ops can never have EnvArgs -> invariant broken
+            let mut call_args = generate_in_arcs_vec(
+                &(op.operatorId),
+                &(compiled.graph.arcs.direct),
+                &Punctuated::new(),
+            ); // ops can never have EnvArgs -> invariant broken
             let out_arcs = generate_out_arcs_vec(
                 &(op.operatorId),
                 &(compiled.graph.arcs.direct),
@@ -278,7 +291,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
                 call_args.extend(c);
             } else if op.operatorId == compiled.graph.return_arc.operator {
                 // the return_arc is the output port
-                call_args.push(quote!{ result_snd });
+                call_args.push(quote! { result_snd });
             }
 
             let op_name = get_call_reference(&op.operatorType);
@@ -286,12 +299,12 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
             if call_args.len() > 0 {
                 generate_operator_code(op_name, call_args)
             } else {
-                quote!{ #op_name() }
+                quote! { #op_name() }
             }
         })
         .collect();
 
-    quote!{
+    quote! {
         #(tasks.push(Box::new(move || { #op_codes })); )*
     }
 }
@@ -303,45 +316,51 @@ fn filter_env_arc(arc: &DirectArc) -> bool {
     }
 }
 
-fn generate_sfn_call_code(op: &i32, sf: Ident, call_args: Vec<TokenStream>,
-                          r: Ident, send: TokenStream,
-                          num_input_arcs: usize, state_arcs: &Vec<StateArc>) -> TokenStream {
+fn generate_sfn_call_code(
+    op: &i32,
+    sf: Ident,
+    call_args: Vec<TokenStream>,
+    r: Ident,
+    send: TokenStream,
+    num_input_arcs: usize,
+    state_arcs: &Vec<StateArc>,
+) -> TokenStream {
     let is_sfn = match state_arcs.iter().find(|arc| &arc.target == op) {
-                        Some(_) => true,
-                        None => false,
-                    };
-    let call_code = quote!{#sf( #(#call_args),* )};
+        Some(_) => true,
+        None => false,
+    };
+    let call_code = quote! {#sf( #(#call_args),* )};
     if is_sfn {
         let state_chan = generate_recv_var_for_state_arc(&op);
-        let sfn_code = quote!{
-             let #r = state.#call_code;
-             #send
-         };
+        let sfn_code = quote! {
+            let #r = state.#call_code;
+            #send
+        };
 
         if num_input_arcs > 0 {
-          // global state goes along the lines of:
-          quote!{
-              let state = #state_chan.recv()?;
-              loop {
-                 #sfn_code
-              }
-          }
+            // global state goes along the lines of:
+            quote! {
+                let state = #state_chan.recv()?;
+                loop {
+                   #sfn_code
+                }
+            }
         } else {
-          quote!{ #sfn_code; Ok(()) }
+            quote! { #sfn_code; Ok(()) }
         }
     } else {
-        let sfn_code = quote!{
+        let sfn_code = quote! {
             let #r = #call_code;
             #send
         };
         if num_input_arcs > 0 {
-          quote!{
-              loop {
-                  #sfn_code
-              }
-          }
+            quote! {
+                loop {
+                    #sfn_code
+                }
+            }
         } else {
-          quote!{ #sfn_code; Ok(()) }
+            quote! { #sfn_code; Ok(()) }
         }
     }
 }
@@ -360,8 +379,11 @@ pub fn generate_sfns(
         });
     let sf_codes: Vec<TokenStream> = sfns
         .map(|op| {
-            let mut in_arcs =
-                generate_in_arcs_vec(&(op.operatorId), &(compiled.graph.arcs.direct), algo_call_args);
+            let mut in_arcs = generate_in_arcs_vec(
+                &(op.operatorId),
+                &(compiled.graph.arcs.direct),
+                algo_call_args,
+            );
             let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs.direct));
             let mut zipped_in_arcs: Vec<(&&DirectArc, TokenStream)> =
                 orig_in_arcs.iter().zip(in_arcs.drain(..)).collect();
@@ -424,16 +446,23 @@ pub fn generate_sfns(
                 .iter()
                 .map(|(orig_arc, code)| match orig_arc.source {
                     env(_) => code.clone().clone(),
-                    local(_) => quote!{ #code.recv()? },
+                    local(_) => quote! { #code.recv()? },
                 })
                 .collect();
 
-            generate_sfn_call_code(&op.operatorId, sf, call_args, r, send, num_input_arcs,
-                                   &compiled.graph.arcs.state)
+            generate_sfn_call_code(
+                &op.operatorId,
+                sf,
+                call_args,
+                r,
+                send,
+                num_input_arcs,
+                &compiled.graph.arcs.state,
+            )
         })
         .collect();
 
-    quote!{
+    quote! {
         let mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'static>> = Vec::new();
         #(tasks.push(Box::new(move || { #sf_codes })); )*
     }
@@ -448,18 +477,18 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>, op: &i32, final_op: &i32) -> T
     match outputs.len() {
         0 => {
             if op == final_op {
-                quote!{ result_snd.send(#r)?; }
+                quote! { result_snd.send(#r)?; }
             } else {
-                quote!{} // drop
+                quote! {} // drop
             }
         }
         1 => {
             let o = &outputs[0];
-            quote!{ #o.send(#r)? }
+            quote! { #o.send(#r)? }
         }
         _ => {
             let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
-            quote!{
+            quote! {
                 #(#outputs.send(#results.clone())?);*;
             }
         }
@@ -486,14 +515,14 @@ fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
             let ns_id = r
                 .iter()
                 .skip(1) // used as initial state for folding (assertion: must have at least one element!)
-                .fold(quote!{ #initial_val }, |state, curr| {
+                .fold(quote! { #initial_val }, |state, curr| {
                     let n = Ident::new(&curr, Span::call_site());
-                    quote!{
+                    quote! {
                         #state::#n
                     }
                 });
 
-            quote!{
+            quote! {
                 use #ns_id;
             }
         })
@@ -503,7 +532,7 @@ fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
 fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
     let app_namespaces = generate_app_namespaces(operators);
 
-    quote!{
+    quote! {
         use std::sync::mpsc::{Receiver, Sender};
         use std::boxed::FnBox;
         use ohua_runtime::*;
@@ -514,100 +543,106 @@ fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
 
 // TODO: generalize this
 fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
-    let mut num_args: Vec<usize> =
-        compiled_algo.graph.operators
-             .iter()
-             .filter(|op| op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
-                          op.operatorType.qbName.as_str() ==  "ctrl")
-             .map(|op|{
-                let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                num_args-1
-            })
-             .collect();
+    let mut num_args: Vec<usize> = compiled_algo
+        .graph
+        .operators
+        .iter()
+        .filter(|op| {
+            op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+                && op.operatorType.qbName.as_str() == "ctrl"
+        })
+        .map(|op| {
+            let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+            num_args - 1
+        })
+        .collect();
     num_args.sort();
     num_args.dedup();
 
-    let code: Vec<TokenStream> =
-        num_args.drain(..)
-                .map(|num| generate_ctrl_operator(num))
-                .collect();
+    let code: Vec<TokenStream> = num_args
+        .drain(..)
+        .map(|num| generate_ctrl_operator(num))
+        .collect();
 
     let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
 
-    compiled_algo.graph.operators =
-        ops
-          .drain(..)
-          .map(|mut op|{
-             if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
-                op.operatorType.qbName.as_str() ==  "ctrl" {
-                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                 op.operatorType.qbNamespace = vec![];
-                 op.operatorType.qbName = format!("ctrl_{}", num_args-1);
+    compiled_algo.graph.operators = ops
+        .drain(..)
+        .map(|mut op| {
+            if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+                && op.operatorType.qbName.as_str() == "ctrl"
+            {
+                let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+                op.operatorType.qbNamespace = vec![];
+                op.operatorType.qbName = format!("ctrl_{}", num_args - 1);
             }
             op
-          })
-          .collect();
+        })
+        .collect();
 
-    quote!{
+    quote! {
         #(#code)*
     }
 }
 
 fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
-    let mut num_args: Vec<(i32,i32)> =
-        compiled_algo.graph.operators
-             .iter()
-             .filter(|op| op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
-                          op.operatorType.qbName.as_str() ==  "nth")
-             .map(|op|{
-                let mut in_arcs = get_in_arcs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                assert!(in_arcs.len() == 3);
-                in_arcs.sort_by_key(|arc| { arc.target.index } );
-                let num_arc = in_arcs.get(0).expect("Impossible!");
-                let len_arc = in_arcs.get(1).expect("Impossible");
-                let num = match num_arc.source {
-                    env(ref e) => match e {
-                        NumericLit(i) => *i,
-                        _ => panic!("Compiler invariant broken!"),
-                    },
+    let mut num_args: Vec<(i32, i32)> = compiled_algo
+        .graph
+        .operators
+        .iter()
+        .filter(|op| {
+            op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+                && op.operatorType.qbName.as_str() == "nth"
+        })
+        .map(|op| {
+            let mut in_arcs = get_in_arcs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+            assert!(in_arcs.len() == 3);
+            in_arcs.sort_by_key(|arc| arc.target.index);
+            let num_arc = in_arcs.get(0).expect("Impossible!");
+            let len_arc = in_arcs.get(1).expect("Impossible");
+            let num = match num_arc.source {
+                env(ref e) => match e {
+                    NumericLit(i) => *i,
                     _ => panic!("Compiler invariant broken!"),
-                };
-                let len = match len_arc.source {
-                    env(ref e) => match e {
-                        NumericLit(i) => *i,
-                        _ => panic!("Compiler invariant broken!"),
-                    },
+                },
+                _ => panic!("Compiler invariant broken!"),
+            };
+            let len = match len_arc.source {
+                env(ref e) => match e {
+                    NumericLit(i) => *i,
                     _ => panic!("Compiler invariant broken!"),
-                };
-                assert!(num < len, "Compiler invariant broken!");
-                (num, len)
-            })
-             .collect();
+                },
+                _ => panic!("Compiler invariant broken!"),
+            };
+            assert!(num < len, "Compiler invariant broken!");
+            (num, len)
+        })
+        .collect();
     num_args.sort();
     num_args.dedup();
 
-    let code: Vec<TokenStream> =
-        num_args.drain(..)
-                .map(|(num, len)| generate_nth(num, len))
-                .collect();
+    let code: Vec<TokenStream> = num_args
+        .drain(..)
+        .map(|(num, len)| generate_nth(num, len))
+        .collect();
 
     let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
 
-    compiled_algo.graph.operators =
-        ops
-          .drain(..)
-          .map(|mut op|{
-             if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"] &&
-                op.operatorType.qbName.as_str() ==  "nth" {
-                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                 op.operatorType.qbNamespace = vec![];
-                 op.operatorType.qbName = format!("nth_{}", num_args-1);
+    compiled_algo.graph.operators = ops
+        .drain(..)
+        .map(|mut op| {
+            if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+                && op.operatorType.qbName.as_str() == "nth"
+            {
+                let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+                op.operatorType.qbNamespace = vec![];
+                op.operatorType.qbName = format!("nth_{}", num_args - 1);
             }
             op
-          })
-          .collect();
+        })
+        .collect();
 
-    quote!{
+    quote! {
         #(#code)*
     }
 }
@@ -696,7 +731,7 @@ pub fn generate_code(
     // macro because quote! has Span:call_site() -> call site = call site of the macro!
     // https://github.com/dtolnay/quote
     // https://docs.rs/proc-macro2/0.4/proc_macro2/struct.Span.html#method.call_site
-    quote!{
+    quote! {
         {
             #header_code
 
@@ -733,8 +768,13 @@ mod tests {
     use ohua_types::Operator;
     use ohua_types::OperatorType;
 
-    fn producer_consumer(prod: OperatorType, prod_t: NodeType,
-                         con: OperatorType, con_t: NodeType, out_idx: i32) -> OhuaData {
+    fn producer_consumer(
+        prod: OperatorType,
+        prod_t: NodeType,
+        con: OperatorType,
+        con_t: NodeType,
+        out_idx: i32,
+    ) -> OhuaData {
         OhuaData {
             graph: DFGraph {
                 operators: vec![
@@ -756,9 +796,9 @@ mod tests {
                             index: 0,
                         },
                         source: ArcSource::local(ArcIdentifier {
-                                operator: 0,
-                                index: out_idx,
-                            }),
+                            operator: 0,
+                            index: out_idx,
+                        }),
                     }],
                     compound: vec![],
                     state: vec![],

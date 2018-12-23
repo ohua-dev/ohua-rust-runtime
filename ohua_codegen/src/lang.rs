@@ -1,4 +1,3 @@
-
 use proc_macro2::{Ident, Span, TokenStream};
 
 //
@@ -14,27 +13,31 @@ use proc_macro2::{Ident, Span, TokenStream};
 // As such, the only way to write such an operator is using tail recursion as shown below.
 //
 pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
-    let fn_name = Ident::new(&format!("ctrl_{}", num_args),
-                             Span::call_site());
-    let sfn_name = Ident::new(&format!("ctrl_sf_{}", num_args),
-                              Span::call_site());
+    let fn_name = Ident::new(&format!("ctrl_{}", num_args), Span::call_site());
+    let sfn_name = Ident::new(&format!("ctrl_sf_{}", num_args), Span::call_site());
 
-    let ref vars_in:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                              Ident::new(&format!("var_in_{}", arg_idx.to_string()),
-                                         Span::call_site()) })
-                                          .collect();
-    let ref vars_out:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                              Ident::new(&format!("var_out_{}", arg_idx.to_string()),
-                                         Span::call_site()) })
-                                           .collect();
-    let ref vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                              Ident::new(&format!("var_{}", arg_idx.to_string()),
-                                         Span::call_site()) })
-                                       .collect();
-    let ref type_vars:Vec<Ident> = (0..num_args).map(|arg_idx| {
-                           Ident::new(&format!("T{}", arg_idx.to_string()),
-                                      Span::call_site()) })
-                                    .collect();
+    let ref vars_in: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| {
+            Ident::new(
+                &format!("var_in_{}", arg_idx.to_string()),
+                Span::call_site(),
+            )
+        })
+        .collect();
+    let ref vars_out: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| {
+            Ident::new(
+                &format!("var_out_{}", arg_idx.to_string()),
+                Span::call_site(),
+            )
+        })
+        .collect();
+    let ref vars: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| Ident::new(&format!("var_{}", arg_idx.to_string()), Span::call_site()))
+        .collect();
+    let ref type_vars: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| Ident::new(&format!("T{}", arg_idx.to_string()), Span::call_site()))
+        .collect();
 
     // The following block is necessary until https://github.com/dtolnay/quote/issues/8 is closed (which will hopefully happen eventually)
     let type_vars2 = type_vars;
@@ -59,21 +62,21 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
     let vars_out5 = vars_out;
     let vars_out6 = vars_out;
 
-    quote!{
+    quote! {
         fn #fn_name<#(#type_vars:Clone),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
             #(#vars_in:&Receiver<#type_vars2>),* ,
-            #(#vars_out:&Sender<#type_vars3>),*) {
-          let (renew_next_time, count) = ctrl_inp.recv().unwrap();
-          let (#(#vars,)*) = ( #(#vars_in2.recv().unwrap()),* );
+            #(#vars_out:&Sender<#type_vars3>),*) -> Result<(), RunError> {
+          let (renew_next_time, count) = ctrl_inp.recv()?;
+          let (#(#vars , )*) = ( #(#vars_in2.recv()? , )* );
           for _ in 0..count {
-              #(#vars_out2.send(#vars2.clone()).unwrap();)*
+              #(#vars_out2.send(#vars2.clone())?;)*
           };
           #sfn_name(ctrl_inp,
                     #(#vars_in3),* ,
                     #(#vars_out3),* ,
                     renew_next_time,
-                    (#(#vars3,)*))
+                    (#(#vars3 , )*))
         };
 
         fn #sfn_name<#(#type_vars4:Clone),*>(
@@ -81,22 +84,22 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
             #(#vars_in4:&Receiver<#type_vars5>),* ,
             #(#vars_out4:&Sender<#type_vars6>),* ,
             renew: bool,
-            state_vars:(#(#type_vars7),*)) {
-          let (renew_next_time, count) = ctrl_inp.recv().unwrap();
+            state_vars:(#(#type_vars7 , )*)) -> Result<(), RunError> {
+          let (renew_next_time, count) = ctrl_inp.recv()?;
           let (#(#vars4,)*) = if renew {
-                          ( #(#vars_in5.recv().unwrap()),* )
+                          ( #(#vars_in5.recv()? , )* )
                      } else {
                          // reuse the captured vars
                          state_vars
                      };
           for _ in 0..count {
-              #(#vars_out5.send(#vars5.clone()).unwrap();)*
+              #(#vars_out5.send(#vars5.clone())?;)*
           };
           #sfn_name(ctrl_inp,
                     #(#vars_in6),* ,
                     #(#vars_out6),* ,
                     renew_next_time,
-                    (#(#vars6,)*))
+                    (#(#vars6 , )*))
         };
     }
 }
@@ -149,20 +152,18 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 // nth :: idx -> length -> tuple -> element
 // This allows a backend to implement it without any further type info.
 
-pub fn generate_nth(num:i32, len:i32) -> TokenStream {
+pub fn generate_nth(num: i32, len: i32) -> TokenStream {
     let fn_name = Ident::new(&format!("nth_{}", num), Span::call_site());
-    let ref vars:Vec<Ident> = (0..len).map(|var_idx| {
-                           Ident::new(&format!("var_{}", var_idx.to_string()),
-                                      Span::call_site()) })
-                                         .collect();
-    let ref type_vars:Vec<Ident> = (0..len).map(|arg_idx| {
-                        Ident::new(&format!("T{}", arg_idx.to_string()),
-                                   Span::call_site()) })
-                                 .collect();
+    let ref vars: Vec<Ident> = (0..len)
+        .map(|var_idx| Ident::new(&format!("var_{}", var_idx.to_string()), Span::call_site()))
+        .collect();
+    let ref type_vars: Vec<Ident> = (0..len)
+        .map(|arg_idx| Ident::new(&format!("T{}", arg_idx.to_string()), Span::call_site()))
+        .collect();
     let type_vars2 = type_vars;
     let type_var = Ident::new(&format!("T{}", num), Span::call_site());
     let var = Ident::new(&format!("var_{}", num), Span::call_site());
-    quote!{
+    quote! {
         fn #fn_name< #(#type_vars),* >(t:(#(#type_vars2),*)) -> #type_var {
             let (#(#vars),*) = t;
             #var
