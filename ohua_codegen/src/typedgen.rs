@@ -585,6 +585,40 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
     }
 }
 
+fn find_nth_info(op_id: &i32, direct_arcs: &Vec<DirectArc>) -> (i32, i32) {
+    let mut in_arcs = get_in_arcs(op_id, direct_arcs);
+    println!("op id = {}", op_id);
+    println!("in_arcs length = {}", in_arcs.len());
+    assert!(in_arcs.len() == 3);
+    in_arcs.sort_by_key(|arc| arc.target.index);
+    let num_arc = in_arcs.get(0).expect("Impossible!");
+    let len_arc = in_arcs.get(1).expect("Impossible");
+    let num = match num_arc.source {
+        env(ref e) => match e {
+            NumericLit(i) => *i,
+            _ => panic!("Compiler invariant broken!"),
+        },
+        _ => panic!("Compiler invariant broken!"),
+    };
+    let len = match len_arc.source {
+        env(ref e) => match e {
+            NumericLit(i) => *i,
+            _ => panic!("Compiler invariant broken!"),
+        },
+        _ => panic!("Compiler invariant broken!"),
+    };
+    (num, len)
+}
+
+fn is_nth(op_id: &i32, ops: &Vec<Operator>) -> bool {
+    let op = ops.iter().find(|op| &op.operatorId == op_id);
+    match op {
+        Some(o) => o.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+                && o.operatorType.qbName.as_str() == "nth",
+        None => false
+    }
+}
+
 fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
     let mut num_args: Vec<(i32, i32)> = compiled_algo
         .graph
@@ -594,29 +628,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
             op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
                 && op.operatorType.qbName.as_str() == "nth"
         })
-        .map(|op| {
-            let mut in_arcs = get_in_arcs(&op.operatorId, &compiled_algo.graph.arcs.direct);
-            assert!(in_arcs.len() == 3);
-            in_arcs.sort_by_key(|arc| arc.target.index);
-            let num_arc = in_arcs.get(0).expect("Impossible!");
-            let len_arc = in_arcs.get(1).expect("Impossible");
-            let num = match num_arc.source {
-                env(ref e) => match e {
-                    NumericLit(i) => *i,
-                    _ => panic!("Compiler invariant broken!"),
-                },
-                _ => panic!("Compiler invariant broken!"),
-            };
-            let len = match len_arc.source {
-                env(ref e) => match e {
-                    NumericLit(i) => *i,
-                    _ => panic!("Compiler invariant broken!"),
-                },
-                _ => panic!("Compiler invariant broken!"),
-            };
-            assert!(num < len, "Compiler invariant broken!");
-            (num, len)
-        })
+        .map(|op| find_nth_info(&op.operatorId, &compiled_algo.graph.arcs.direct))
         .collect();
     num_args.sort();
     num_args.dedup();
@@ -626,17 +638,50 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .map(|(num, len)| generate_nth(num, len))
         .collect();
 
-    let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
+    let mut direct_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
+    compiled_algo.graph.arcs.direct = direct_arcs
+        .drain(..)
+        .filter(|arc| {
+            let nth = is_nth(&arc.target.operator, &compiled_algo.graph.operators);
+            if nth {
+                if arc.target.index < 2 {
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
 
+        })
+        .map(|mut arc| {
+            let nth = is_nth(&arc.target.operator, &compiled_algo.graph.operators);
+            if nth {
+                if arc.target.index < 2 {
+                    // filtered above
+                    panic!("Impossible!");
+                } else if arc.target.index == 2 {
+                    arc.target.index = 0;
+                } else {
+                    // assertion checked elsewhere already
+                    panic!("Impossible!");
+                }
+            }
+
+            arc
+        })
+        .collect();
+
+    let mut ops: Vec<Operator> = compiled_algo.graph.operators.drain(..).collect();
     compiled_algo.graph.operators = ops
         .drain(..)
         .map(|mut op| {
             if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
                 && op.operatorType.qbName.as_str() == "nth"
             {
-                let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
+                let (idx, total) = find_nth_info(&op.operatorId, &compiled_algo.graph.arcs.direct);
                 op.operatorType.qbNamespace = vec![];
-                op.operatorType.qbName = format!("nth_{}", num_args - 1);
+                op.operatorType.qbName = format!("nth_{}_{}", idx, total);
             }
             op
         })
@@ -721,6 +766,7 @@ pub fn generate_code(
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> TokenStream {
     let ctrl_code = generate_ctrls(compiled_algo);
+    let nth_code = generate_nths(compiled_algo);
     // handle_environment_arcs(compiled_algo);
     let header_code = generate_imports(&compiled_algo.graph.operators);
     let arc_code = generate_arcs(&compiled_algo);
@@ -736,6 +782,7 @@ pub fn generate_code(
             #header_code
 
             #ctrl_code
+            #nth_code
 
             #arc_code
             let (result_snd, result_rcv) = std::sync::mpsc::channel();

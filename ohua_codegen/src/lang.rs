@@ -63,7 +63,7 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
     let vars_out6 = vars_out;
 
     quote! {
-        fn #fn_name<#(#type_vars:Clone),*>(
+        fn #fn_name<#(#type_vars:Clone + Send),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
             #(#vars_in:&Receiver<#type_vars2>),* ,
             #(#vars_out:&Sender<#type_vars3>),*) -> Result<(), RunError> {
@@ -79,7 +79,7 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
                     (#(#vars3 , )*))
         };
 
-        fn #sfn_name<#(#type_vars4:Clone),*>(
+        fn #sfn_name<#(#type_vars4:Clone + Send),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
             #(#vars_in4:&Receiver<#type_vars5>),* ,
             #(#vars_out4:&Sender<#type_vars6>),* ,
@@ -148,12 +148,8 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 //     }
 // }
 
-// FIXME Our (Ohua compiler) version of nth must be:
-// nth :: idx -> length -> tuple -> element
-// This allows a backend to implement it without any further type info.
-
 pub fn generate_nth(num: i32, len: i32) -> TokenStream {
-    let fn_name = Ident::new(&format!("nth_{}", num), Span::call_site());
+    let fn_name = Ident::new(&format!("nth_{}_{}", num, len), Span::call_site());
     let ref vars: Vec<Ident> = (0..len)
         .map(|var_idx| Ident::new(&format!("var_{}", var_idx.to_string()), Span::call_site()))
         .collect();
@@ -167,7 +163,7 @@ pub fn generate_nth(num: i32, len: i32) -> TokenStream {
         fn #fn_name< #(#type_vars),* >(t:(#(#type_vars2),*)) -> #type_var {
             let (#(#vars),*) = t;
             #var
-        }
+        };
     }
 }
 
