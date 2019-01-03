@@ -58,6 +58,7 @@ pub fn select<T: Send>(decision: &Receiver<bool>,
     Ok(())
 }
 
+// this does not need destructuring operators.
 #[allow(non_snake_case)]
 pub fn ifFun(cond: &Receiver<bool>,
              ctrl_true: &Sender<(bool,isize)>,
@@ -71,6 +72,16 @@ pub fn ifFun(cond: &Receiver<bool>,
     }
     Ok(())
 }
+
+// this is more concise but requires nth operators for destructuring.
+// #[allow(non_snake_case)]
+// pub fn ifFun(cond: bool) -> ((bool,isize), (bool,isize)) {
+//     if cond {
+//         ((true, 1),(true, 0))
+//     } else {
+//         ((true, 0),(true, 1))
+//     }
+// }
 
 #[allow(non_snake_case)]
 pub fn seqFun<T: Send>(_: T) -> (bool,isize) {

@@ -148,12 +148,12 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 //     }
 // }
 
-pub fn generate_nth(num: i32, len: i32) -> TokenStream {
+pub fn generate_nth(num: &i32, len: &i32) -> TokenStream {
     let fn_name = Ident::new(&format!("nth_{}_{}", num, len), Span::call_site());
-    let ref vars: Vec<Ident> = (0..len)
+    let ref vars: Vec<Ident> = (0..*len)
         .map(|var_idx| Ident::new(&format!("var_{}", var_idx.to_string()), Span::call_site()))
         .collect();
-    let ref type_vars: Vec<Ident> = (0..len)
+    let ref type_vars: Vec<Ident> = (0..*len)
         .map(|arg_idx| Ident::new(&format!("T{}", arg_idx.to_string()), Span::call_site()))
         .collect();
     let type_vars2 = type_vars;

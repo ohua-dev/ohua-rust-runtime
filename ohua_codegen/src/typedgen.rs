@@ -587,8 +587,6 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
 
 fn find_nth_info(op_id: &i32, direct_arcs: &Vec<DirectArc>) -> (i32, i32) {
     let mut in_arcs = get_in_arcs(op_id, direct_arcs);
-    println!("op id = {}", op_id);
-    println!("in_arcs length = {}", in_arcs.len());
     assert!(in_arcs.len() == 3);
     in_arcs.sort_by_key(|arc| arc.target.index);
     let num_arc = in_arcs.get(0).expect("Impossible!");
@@ -620,7 +618,7 @@ fn is_nth(op_id: &i32, ops: &Vec<Operator>) -> bool {
 }
 
 fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
-    let mut num_args: Vec<(i32, i32)> = compiled_algo
+    let mut nths: Vec<(i32, i32, i32)> = compiled_algo
         .graph
         .operators
         .iter()
@@ -628,14 +626,17 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
             op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
                 && op.operatorType.qbName.as_str() == "nth"
         })
-        .map(|op| find_nth_info(&op.operatorId, &compiled_algo.graph.arcs.direct))
+        .map(|op| {
+            let (idx, total) = find_nth_info(&op.operatorId, &compiled_algo.graph.arcs.direct);
+            (op.operatorId, idx, total)
+        })
         .collect();
-    num_args.sort();
-    num_args.dedup();
+    nths.sort();
+    nths.dedup();
 
-    let code: Vec<TokenStream> = num_args
-        .drain(..)
-        .map(|(num, len)| generate_nth(num, len))
+    let code: Vec<TokenStream> = nths
+        .iter()
+        .map(|(_, num, len)| generate_nth(num, len))
         .collect();
 
     let mut direct_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
@@ -676,12 +677,12 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
     compiled_algo.graph.operators = ops
         .drain(..)
         .map(|mut op| {
-            if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
-                && op.operatorType.qbName.as_str() == "nth"
-            {
-                let (idx, total) = find_nth_info(&op.operatorId, &compiled_algo.graph.arcs.direct);
-                op.operatorType.qbNamespace = vec![];
-                op.operatorType.qbName = format!("nth_{}_{}", idx, total);
+            match nths.iter().find(|(id, _, _)|  id == &op.operatorId) {
+                Some((_, idx, total)) => {
+                    op.operatorType.qbNamespace = vec![];
+                    op.operatorType.qbName = format!("nth_{}_{}", idx, total);
+                },
+                None => ()
             }
             op
         })
