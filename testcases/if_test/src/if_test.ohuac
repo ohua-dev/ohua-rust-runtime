@@ -1,12 +1,12 @@
 ns some_ns;
 
-use sf iftest::{modify_string_positive, modify_string_negative, get_ctrl_input, get_input};
+use sf iftest::{modify_string_positive, modify_string_negative, get_cond_result, get_input};
 
 fn main() -> String {
-    let ctrl = get_ctrl_input();
+    let cond = get_cond_result();
     let inp = get_input();
 
-    if (ctrl) {
+    if (cond) {
         modify_string_positive(inp)
     } else {
         modify_string_negative(inp)

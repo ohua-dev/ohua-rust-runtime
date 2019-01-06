@@ -52,7 +52,7 @@ pub struct Operator {
 }
 
 /// The inner operator information such as namespace, function name and link to the respective function.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct OperatorType {
     #[serde(rename(deserialize = "namespace"))]
     pub qbNamespace: Vec<String>,
@@ -63,7 +63,7 @@ pub struct OperatorType {
 }
 
 /// Type of the operator. It can either be a normal wrapper around a SFN or a full-fledged Ohua operator.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub enum NodeType {
     /// Simple wrapper around a stateful function.
     FunctionNode,
@@ -72,7 +72,7 @@ pub enum NodeType {
 }
 
 /// A simple Arc between two points in the graph.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DirectArc {
     pub target: ArcIdentifier,
     pub source: ArcSource,
@@ -105,14 +105,29 @@ pub enum ArcSource {
     local(ArcIdentifier),
 }
 
+// The below does not work because UnitLit has no 'content' field.
+// #[derive(Deserialize, Debug, Clone)]
+// #[serde(tag = "tag", content = "contents")]
+// pub enum Envs {
+//     NumericLit(i32),
+//     EnvRefLit(i32),
+//     FunRefLit(String),
+//     UnitLit()
+// }
+
+//https://serde.rs/enum-representations.html
+
 #[derive(Deserialize, Debug, Clone)]
-#[serde(tag = "tag", content = "contents")]
+#[serde(tag = "tag")]
 pub enum Envs {
-    NumericLit(i32),
-    EnvRefLit(i32),
-    FunRefLit(String),
-    UnitLit()
+    NumericLit { content: i32 },
+    EnvRefLit { content: i32 },
+    FunRefLit { contents: (OperatorType,i32) },
+    // FIXME the above is a hack for now. it should be this:
+    // FunRefLit { contents: OperatorType },
+    UnitLit {}
 }
+
 
 /// Represents a dependency to a stateful function.
 #[derive(Deserialize, Debug, Clone)]
@@ -258,10 +273,10 @@ impl fmt::Display for ArcSource {
 impl fmt::Display for Envs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Envs::NumericLit(i) => write!(f, "NumericLit({})", i),
-            Envs::EnvRefLit(i) => write!(f, "EnvRefLit({})", i),
-            Envs::FunRefLit(s) => write!(f, "FunRefLit({})", s),
-            Envs::UnitLit() => write!(f, "UnitLit()"),
+            Envs::NumericLit{ content:i } => write!(f, "NumericLit({})", i),
+            Envs::EnvRefLit{ content:i } => write!(f, "EnvRefLit({})", i),
+            Envs::FunRefLit{ contents:s } => write!(f, "FunRefLit({})", s.0),
+            Envs::UnitLit{} => write!(f, "UnitLit()"),
         }
     }
 }

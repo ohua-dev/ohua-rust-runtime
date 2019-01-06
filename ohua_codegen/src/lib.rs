@@ -85,7 +85,9 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     // Phase 4: Run the codegen
     print!("[Phase 4] Generating Code...");
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
+    println!("SERDE");
     let mut ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
+    println!("SERDE DONE");
     alter_ohua_ns_imports(&mut ohua_data);
     // println!("{}", &ohua_data);
 
@@ -98,7 +100,7 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     if let Some(mut local) = assignment {
         local.init = Some((syn::token::Eq::default(), syn::parse2(final_code).unwrap()));
         let x = local.into_token_stream().into();
-        println!("\n\n---\n{}", x);
+        // println!("\n\n---\n{}", x);
         x
     } else {
         let exp = syn::parse2(final_code).unwrap();

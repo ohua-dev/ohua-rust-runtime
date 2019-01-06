@@ -1,7 +1,9 @@
 #![allow(unused_doc_comments)]
 use ohua_types::ArcIdentifier;
 use ohua_types::Envs::EnvRefLit;
+use ohua_types::Envs::FunRefLit;
 use ohua_types::Envs::NumericLit;
+use ohua_types::Envs::UnitLit;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -13,13 +15,14 @@ use ohua_types::{
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::ToTokens;
+use syn::parse::Parse;
 use syn::punctuated::Punctuated;
-use syn::Expr;
+use syn::{Expr, Path};
 
 fn get_op_id(val: &ArcSource) -> &i32 {
     match val {
         ArcSource::env(e) => match e {
-            EnvRefLit(i) => i,
+            EnvRefLit { content: i } => i,
             _ => unimplemented!("get_op_id -> other literals"),
         },
         ArcSource::local(i) => &(i.operator),
@@ -79,7 +82,7 @@ fn get_in_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
 fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     match src {
         env(ref e) => match e {
-            EnvRefLit(ref i) => i,
+            EnvRefLit { content: ref i } => i,
             _ => unimplemented!("get_out_index_from_source -> other literals"),
         },
         local(ref arc_id) => &arc_id.index,
@@ -165,6 +168,7 @@ Generates the parameters for a call.
 */
 fn generate_in_arcs_vec(
     op: &i32,
+    node_type: &NodeType,
     arcs: &Vec<DirectArc>,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> Vec<TokenStream> {
@@ -176,7 +180,7 @@ fn generate_in_arcs_vec(
         .filter(|arc| arc.target.index != -1)
         .map(|a| match a.source {
             env(ref e) => match e {
-                EnvRefLit(i) => algo_call_args
+                EnvRefLit { content: i } => algo_call_args
                     .iter()
                     .nth(*i as usize)
                     .expect(
@@ -188,9 +192,27 @@ fn generate_in_arcs_vec(
                         .to_string(),
                     )
                     .into_token_stream(),
-                NumericLit(num) => {
+                NumericLit { content: num } => {
                     let n = Literal::i32_unsuffixed(*num);
-                    quote! { #n }
+                    match *node_type {
+                        NodeType::FunctionNode => quote! { #n },
+                        NodeType::OperatorNode => quote! { send_once(#n) },
+                    }
+                }
+                UnitLit {} => {
+                    match *node_type {
+                        // FIXME make sure that this is the unitFn function!
+                        NodeType::FunctionNode => quote! { Unit{} },
+                        NodeType::OperatorNode => quote! { send_once(Unit{}) },
+                    }
+                }
+                FunRefLit { contents: fn_ref } => {
+                    // let f = syn::parse_str::<Path>(&fn_ref.0.function_name()).unwrap();
+                    let f = get_call_reference(&fn_ref.0);
+                    match *node_type {
+                        NodeType::FunctionNode => quote! { #f },
+                        NodeType::OperatorNode => quote! { send_once(#f) },
+                    }
                 }
                 _ => unimplemented!("generate_in_arcs_vec -> other literals"),
             },
@@ -277,6 +299,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
         .map(|op| {
             let mut call_args = generate_in_arcs_vec(
                 &(op.operatorId),
+                &(op.nodeType),
                 &(compiled.graph.arcs.direct),
                 &Punctuated::new(),
             ); // ops can never have EnvArgs -> invariant broken
@@ -381,6 +404,7 @@ pub fn generate_sfns(
         .map(|op| {
             let mut in_arcs = generate_in_arcs_vec(
                 &(op.operatorId),
+                &(op.nodeType),
                 &(compiled.graph.arcs.direct),
                 algo_call_args,
             );
@@ -495,15 +519,15 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>, op: &i32, final_op: &i32) -> T
     }
 }
 
-fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
+fn generate_app_namespaces(operators: &Vec<OperatorType>) -> Vec<TokenStream> {
     let mut namespaces = BTreeSet::new();
     for op in operators {
         // ignore imports in the root
-        if op.operatorType.qbNamespace.is_empty() {
+        if op.qbNamespace.is_empty() {
             continue;
         }
-        let mut r = op.operatorType.qbNamespace.to_vec();
-        r.push(op.operatorType.qbName.to_string());
+        let mut r = op.qbNamespace.to_vec();
+        r.push(op.qbName.to_string());
 
         namespaces.insert(r);
     }
@@ -529,15 +553,40 @@ fn generate_app_namespaces(operators: &Vec<Operator>) -> Vec<TokenStream> {
         .collect()
 }
 
-fn generate_imports(operators: &Vec<Operator>) -> TokenStream {
-    let app_namespaces = generate_app_namespaces(operators);
+fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenStream {
+    let op_types = operators.iter().map(|op| op.operatorType.clone()).collect();
+    let app_namespaces = generate_app_namespaces(&op_types);
+
+    let mut arcs1 = arcs.clone();
+
+    let fn_lit_types = arcs1
+        .drain(..)
+        .filter(|arc| match arc.clone().source {
+            env(e) => match e {
+                FunRefLit { contents: _ } => true,
+                _ => false,
+            },
+            _ => false,
+        })
+        .map(|arc| match arc.source {
+            env(e) => match e {
+                FunRefLit { contents: op } => op.0,
+                _ => panic!("Invariant broken!"),
+            },
+            _ => panic!("Invariant broken!"),
+        })
+        .collect();
+    let fn_lit_namespaces = generate_app_namespaces(&fn_lit_types);
 
     quote! {
         use std::sync::mpsc::{Receiver, Sender};
         use std::boxed::FnBox;
         use ohua_runtime::*;
 
+        use ohua_runtime::lang::{send_once, Unit};
+
         #(#app_namespaces)*
+        #(#fn_lit_namespaces)*
     }
 }
 
@@ -593,14 +642,14 @@ fn find_nth_info(op_id: &i32, direct_arcs: &Vec<DirectArc>) -> (i32, i32) {
     let len_arc = in_arcs.get(1).expect("Impossible");
     let num = match num_arc.source {
         env(ref e) => match e {
-            NumericLit(i) => *i,
+            NumericLit { content: i } => *i,
             _ => panic!("Compiler invariant broken!"),
         },
         _ => panic!("Compiler invariant broken!"),
     };
     let len = match len_arc.source {
         env(ref e) => match e {
-            NumericLit(i) => *i,
+            NumericLit { content: i } => *i,
             _ => panic!("Compiler invariant broken!"),
         },
         _ => panic!("Compiler invariant broken!"),
@@ -611,9 +660,11 @@ fn find_nth_info(op_id: &i32, direct_arcs: &Vec<DirectArc>) -> (i32, i32) {
 fn is_nth(op_id: &i32, ops: &Vec<Operator>) -> bool {
     let op = ops.iter().find(|op| &op.operatorId == op_id);
     match op {
-        Some(o) => o.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
-                && o.operatorType.qbName.as_str() == "nth",
-        None => false
+        Some(o) => {
+            o.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+                && o.operatorType.qbName.as_str() == "nth"
+        }
+        None => false,
     }
 }
 
@@ -653,7 +704,6 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
             } else {
                 true
             }
-
         })
         .map(|mut arc| {
             let nth = is_nth(&arc.target.operator, &compiled_algo.graph.operators);
@@ -677,12 +727,12 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
     compiled_algo.graph.operators = ops
         .drain(..)
         .map(|mut op| {
-            match nths.iter().find(|(id, _, _)|  id == &op.operatorId) {
+            match nths.iter().find(|(id, _, _)| id == &op.operatorId) {
                 Some((_, idx, total)) => {
                     op.operatorType.qbNamespace = vec![];
                     op.operatorType.qbName = format!("nth_{}_{}", idx, total);
-                },
-                None => ()
+                }
+                None => (),
             }
             op
         })
@@ -769,7 +819,10 @@ pub fn generate_code(
     let ctrl_code = generate_ctrls(compiled_algo);
     let nth_code = generate_nths(compiled_algo);
     // handle_environment_arcs(compiled_algo);
-    let header_code = generate_imports(&compiled_algo.graph.operators);
+    let header_code = generate_imports(
+        &compiled_algo.graph.operators,
+        &compiled_algo.graph.arcs.direct,
+    );
     let arc_code = generate_arcs(&compiled_algo);
     let sf_code = generate_sfns(&compiled_algo, algo_call_args);
     let op_code = generate_ops(&compiled_algo);
@@ -878,7 +931,8 @@ mod tests {
             -1,
         );
 
-        let generated_imports = generate_imports(&compiled.graph.operators).to_string();
+        let generated_imports =
+            generate_imports(&compiled.graph.operators, &compiled.graph.arcs.direct).to_string();
         // println!(
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
@@ -949,7 +1003,7 @@ mod tests {
                             operator: 0,
                             index: 0,
                         },
-                        source: ArcSource::env(EnvRefLit(0)),
+                        source: ArcSource::env(EnvRefLit { content: 0 }),
                     }],
                     compound: vec![],
                     state: vec![],

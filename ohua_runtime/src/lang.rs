@@ -1,3 +1,4 @@
+use std::sync::mpsc::channel;
 use std::sync::mpsc::{Receiver, Sender};
 use super::RunError;
 use std::iter::Iterator;
@@ -99,4 +100,27 @@ pub fn recurFun<T: Send, S: Send>(call_actuals_in: &Receiver<T>,
     // TODO this will have to be in the code generation as well!
 
     Ok(())
+}
+
+// a function to pass literals to operators
+pub fn send_once<T>(t:T) -> Receiver<T> {
+    let (snd, rcv) = channel();
+    snd.send(t).unwrap();
+    rcv
+}
+
+/**
+ * Translating Unit, along with functions that implicitly take a Unit argument,
+ * i.e., functions that take no arguments at all.
+ */
+
+// the type
+#[derive(Debug, Clone)]
+pub struct Unit {}
+
+// a function that wraps around functions that receive a ().
+#[allow(non_snake_case)]
+pub fn unitFn<A,F>(f:F, _signal:Unit) -> A
+where F: Fn() -> A {
+    f()
 }
