@@ -101,8 +101,10 @@ pub struct StateArc {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "val")]
 pub enum ArcSource {
-    env(Envs),
-    local(ArcIdentifier),
+    #[serde(rename(deserialize = "env"))]
+    Env(Envs),
+    #[serde(rename(deserialize = "local"))]
+    Local(ArcIdentifier),
 }
 
 // The below does not work because UnitLit has no 'content' field.
@@ -264,8 +266,8 @@ impl fmt::Display for ArcIdentifier {
 impl fmt::Display for ArcSource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &ArcSource::env(ref x) => write!(f, "ValueType::EnvironmentVal({})", x),
-            &ArcSource::local(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
+            &ArcSource::Env(ref x) => write!(f, "ValueType::EnvironmentVal({})", x),
+            &ArcSource::Local(ref arc_id) => write!(f, "ValueType::LocalVal({})", arc_id),
         }
     }
 }

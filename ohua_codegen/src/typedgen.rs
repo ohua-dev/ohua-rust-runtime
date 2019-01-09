@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc::{Receiver, Sender};
 
 use lang::{generate_ctrl_operator, generate_nth};
-use ohua_types::ArcSource::{env, local};
+use ohua_types::ArcSource::{Env, Local};
 use ohua_types::{
     ArcSource, Arcs, CompoundArc, DirectArc, NodeType, OhuaData, Operator, OperatorType, StateArc,
 };
@@ -21,11 +21,11 @@ use syn::{Expr, Path};
 
 fn get_op_id(val: &ArcSource) -> &i32 {
     match val {
-        ArcSource::env(e) => match e {
+        ArcSource::Env(e) => match e {
             EnvRefLit { content: i } => i,
             _ => unimplemented!("get_op_id -> other literals"),
         },
-        ArcSource::local(i) => &(i.operator),
+        ArcSource::Local(i) => &(i.operator),
     }
 }
 
@@ -38,8 +38,8 @@ fn get_num_inputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
 fn get_num_outputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
     arcs.iter()
         .filter(|arc| match &(arc.source) {
-            env(_) => unimplemented!("get_num_outputs -> env args"),
-            local(a_id) => &(a_id.operator) == op,
+            Env(_) => unimplemented!("get_num_outputs -> env args"),
+            Local(a_id) => &(a_id.operator) == op,
         })
         .count()
 }
@@ -48,12 +48,12 @@ fn get_outputs(op: &i32, arcs: &Vec<DirectArc>) -> Vec<i32> {
     let mut t: Vec<i32> = arcs
         .iter()
         .filter(|arc| match &(arc.source) {
-            env(_) => unimplemented!("get_outputs (1) -> env args"),
-            local(a_id) => &(a_id.operator) == op,
+            Env(_) => unimplemented!("get_outputs (1) -> env args"),
+            Local(a_id) => &(a_id.operator) == op,
         })
         .map(|arc| match &(arc.source) {
-            env(_) => unimplemented!("get_outputs (2) -> env args"),
-            local(a_id) => a_id.index,
+            Env(_) => unimplemented!("get_outputs (2) -> env args"),
+            Local(a_id) => a_id.index,
         })
         .collect();
     t.sort();
@@ -64,8 +64,8 @@ fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
     let t = arcs
         .iter()
         .filter(|arc| match &(arc.source) {
-            env(_) => false,
-            local(a_id) => &(a_id.operator) == op,
+            Env(_) => false,
+            Local(a_id) => &(a_id.operator) == op,
         })
         .collect();
     t
@@ -81,11 +81,11 @@ fn get_in_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
 
 fn get_out_index_from_source(src: &ArcSource) -> &i32 {
     match src {
-        env(ref e) => match e {
+        Env(ref e) => match e {
             EnvRefLit { content: ref i } => i,
             _ => unimplemented!("get_out_index_from_source -> other literals"),
         },
-        local(ref arc_id) => &arc_id.index,
+        Local(ref arc_id) => &arc_id.index,
     }
 }
 
@@ -166,6 +166,7 @@ fn generate_recv_var_for_state_arc(op: &i32) -> Ident {
 /**
 Generates the parameters for a call.
 */
+#[allow(unreachable_patterns)]
 fn generate_in_arcs_vec(
     op: &i32,
     node_type: &NodeType,
@@ -179,7 +180,7 @@ fn generate_in_arcs_vec(
         .iter()
         .filter(|arc| arc.target.index != -1)
         .map(|a| match a.source {
-            env(ref e) => match e {
+            Env(ref e) => match e {
                 EnvRefLit { content: i } => algo_call_args
                     .iter()
                     .nth(*i as usize)
@@ -216,7 +217,7 @@ fn generate_in_arcs_vec(
                 }
                 _ => unimplemented!("generate_in_arcs_vec -> other literals"),
             },
-            local(ref arc) => {
+            Local(ref arc) => {
                 generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
             }
         })
@@ -334,7 +335,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
 
 fn filter_env_arc(arc: &DirectArc) -> bool {
     match arc.source {
-        env(_) => false,
+        Env(_) => false,
         _ => true,
     }
 }
@@ -409,7 +410,7 @@ pub fn generate_sfns(
                 algo_call_args,
             );
             let orig_in_arcs = get_in_arcs(&(op.operatorId), &(compiled.graph.arcs.direct));
-            let mut zipped_in_arcs: Vec<(&&DirectArc, TokenStream)> =
+            let zipped_in_arcs: Vec<(&&DirectArc, TokenStream)> =
                 orig_in_arcs.iter().zip(in_arcs.drain(..)).collect();
 
             // FIXME What was that needed for? Passing one env arg to a function more than once?
@@ -418,7 +419,7 @@ pub fn generate_sfns(
             // let mut seen_local_arc = false;
             // for pos in 0..zipped_in_arcs.len() {
             //     match zipped_in_arcs[pos].0.source{
-            //         env(ref e) => match e {
+            //         Env(ref e) => match e {
             //             EnvRefLit(x) => {
             //                 if let Some(old_pos) = seen_env_arcs.insert(x, pos) {
             //                     // the value is present, clone the old one
@@ -428,7 +429,7 @@ pub fn generate_sfns(
             //             },
             //             _ => unimplemented!("generate_sfns -> other literals"),
             //         },
-            //         local(_) => {
+            //         Local(_) => {
             //             seen_local_arc = true;
             //         }
             //     }
@@ -469,8 +470,8 @@ pub fn generate_sfns(
             let call_args: Vec<TokenStream> = zipped_in_arcs
                 .iter()
                 .map(|(orig_arc, code)| match orig_arc.source {
-                    env(_) => code.clone().clone(),
-                    local(_) => quote! { #code.recv()? },
+                    Env(_) => code.clone().clone(),
+                    Local(_) => quote! { #code.recv()? },
                 })
                 .collect();
 
@@ -562,14 +563,14 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
     let fn_lit_types = arcs1
         .drain(..)
         .filter(|arc| match arc.clone().source {
-            env(e) => match e {
+            Env(e) => match e {
                 FunRefLit { contents: _ } => true,
                 _ => false,
             },
             _ => false,
         })
         .map(|arc| match arc.source {
-            env(e) => match e {
+            Env(e) => match e {
                 FunRefLit { contents: op } => op.0,
                 _ => panic!("Invariant broken!"),
             },
@@ -641,14 +642,14 @@ fn find_nth_info(op_id: &i32, direct_arcs: &Vec<DirectArc>) -> (i32, i32) {
     let num_arc = in_arcs.get(0).expect("Impossible!");
     let len_arc = in_arcs.get(1).expect("Impossible");
     let num = match num_arc.source {
-        env(ref e) => match e {
+        Env(ref e) => match e {
             NumericLit { content: i } => *i,
             _ => panic!("Compiler invariant broken!"),
         },
         _ => panic!("Compiler invariant broken!"),
     };
     let len = match len_arc.source {
-        env(ref e) => match e {
+        Env(ref e) => match e {
             NumericLit { content: i } => *i,
             _ => panic!("Compiler invariant broken!"),
         },
@@ -753,7 +754,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
 //         .direct
 //         .iter()
 //         .filter(|a| {
-//             if let ArcSource::env(_) = a.source {
+//             if let ArcSource::Env(_) = a.source {
 //                 true
 //             } else {
 //                 false
@@ -789,10 +790,10 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
 //         // reroute any env-arcs with matching id
 //         let mut d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
 //         compiled_algo.graph.arcs.direct = d_arcs.drain(..).map(|mut arc| {
-//             if let env(e) = arc.source.clone() {
+//             if let Env(e) = arc.source.clone() {
 //                 if let EnvRefLit(env_id) = e {
 //                     if i == env_id {
-//                         arc.source = ArcSource::local(ArcIdentifier {
+//                         arc.source = ArcSource::Local(ArcIdentifier {
 //                                 operator: new_op_id_base + i,
 //                                 index: -1,
 //                             })
@@ -807,7 +808,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
 //                 operator: new_op_id_base + i,
 //                 index: 0,
 //             },
-//             source: ArcSource::env(EnvRefLit(i)),
+//             source: ArcSource::Env(EnvRefLit(i)),
 //         });
 //     }
 // }
@@ -896,7 +897,7 @@ mod tests {
                             operator: 1,
                             index: 0,
                         },
-                        source: ArcSource::local(ArcIdentifier {
+                        source: ArcSource::Local(ArcIdentifier {
                             operator: 0,
                             index: out_idx,
                         }),
@@ -1003,7 +1004,7 @@ mod tests {
                             operator: 0,
                             index: 0,
                         },
-                        source: ArcSource::env(EnvRefLit { content: 0 }),
+                        source: ArcSource::Env(EnvRefLit { content: 0 }),
                     }],
                     compound: vec![],
                     state: vec![],
