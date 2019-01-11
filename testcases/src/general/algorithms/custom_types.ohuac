@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf house (move_house, move_in_one, move_in_one_more, evict_one, house_information, create_house, get_address, build_humans, printout);
+use sf general::house::{move_house, move_in_one, move_in_one_more, evict_one, house_information, create_house, get_address, build_humans, printout};
 
 fn main() {
     let house = create_house();

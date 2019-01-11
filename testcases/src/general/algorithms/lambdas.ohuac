@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf stringfunctions::{generate_string, recv_number, combine, printout};
+use sf general::strings::{generate_string, recv_number, combine, printout};
 
 fn main() {
     let s = generate_string();

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub fn produce() -> u32 {
     println!("producing");
     42

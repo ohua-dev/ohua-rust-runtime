@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[derive(Clone)]
 pub struct Human {
     pub name: String,
