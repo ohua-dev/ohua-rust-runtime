@@ -123,7 +123,10 @@ pub enum ArcSource {
 #[serde(tag = "tag")]
 pub enum Envs {
     NumericLit { content: i32 },
-    EnvRefLit { content: i32 },
+    EnvRefLit {
+        #[serde(rename(deserialize = "contents"))]
+        content: i32
+    },
     FunRefLit { contents: (OperatorType,i32) },
     // FIXME the above is a hack for now. it should be this:
     // FunRefLit { contents: OperatorType },

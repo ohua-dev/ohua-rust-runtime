@@ -744,79 +744,89 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
     }
 }
 
-// FIXME why do we need this?
-// fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
-//     // special-casing of zero env-arcs as they still have a main arity of one.
-//     // Hotfix until ohua-dev/ohuac#16 is fixed
-//     if compiled_algo
-//         .graph
-//         .arcs
-//         .direct
-//         .iter()
-//         .filter(|a| {
-//             if let ArcSource::Env(_) = a.source {
-//                 true
-//             } else {
-//                 false
-//             }
-//         })
-//         .count()
-//         == 0
-//     {
-//         return;
-//     }
-//
-//     // find starting number for next operator
-//     let new_op_id_base: i32 = compiled_algo.graph.operators.iter().fold(0, |acc, op| {
-//         if op.operatorId > acc {
-//             op.operatorId
-//         } else {
-//             acc
-//         }
-//     }) + 1;
-//
-//     // FIXME We should never use this field!
-//     for i in 0..(compiled_algo.mainArity) {
-//         // add a new operator per environment arc
-//         compiled_algo.graph.operators.push(Operator {
-//             operatorId: new_op_id_base + i,
-//             operatorType: OperatorType {
-//                 qbNamespace: vec!["ohua_runtime".into(), "lang".into()],
-//                 qbName: "id".into(),
-//             },
-//             nodeType: NodeType::FunctionNode,
-//         });
-//
-//         // reroute any env-arcs with matching id
-//         let mut d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
-//         compiled_algo.graph.arcs.direct = d_arcs.drain(..).map(|mut arc| {
-//             if let Env(e) = arc.source.clone() {
-//                 if let EnvRefLit(env_id) = e {
-//                     if i == env_id {
-//                         arc.source = ArcSource::Local(ArcIdentifier {
-//                                 operator: new_op_id_base + i,
-//                                 index: -1,
-//                             })
-//                     }
-//                 }
-//             };
-//             arc
-//         }).collect();
-//
-//         compiled_algo.graph.arcs.direct.push(DirectArc {
-//             target: ArcIdentifier {
-//                 operator: new_op_id_base + i,
-//                 index: 0,
-//             },
-//             source: ArcSource::Env(EnvRefLit(i)),
-//         });
-//     }
-// }
+/// This function captures environment arguments in an `id` operator. The rationale
+/// behind this move is that this seemed -- at the time this was conceived -- the best
+/// option for enabling multiple uses of a main argument, which requires cloning.
+/// One could of course simply clone every occurence of an env arc, but this might
+/// produce more problems, requiring unnecessarily `Clone` implementations where normally
+/// no clone would be necessary. So the rationale is to encapsulate these env arcs into
+/// an operator and let the mechanisms that are already in place for local arcs take care
+/// of determining where clones are necessary.
+fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
+    let mut env_arc_ids = compiled_algo
+        .graph
+        .arcs
+        .direct
+        .iter()
+        .filter(|a| {
+            if let ArcSource::Env(EnvRefLit { content: _ }) = a.source {
+                true
+            } else {
+                false
+            }
+        })
+        .fold(Vec::new(), |mut acc, x| match x.source {
+            ArcSource::Env(EnvRefLit { content: num }) => {
+                acc.push(num);
+                acc
+            }
+            _ => unreachable!(),
+        });
+    env_arc_ids.sort();
+    env_arc_ids.dedup();
+
+    // find starting number for next operator
+    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().fold(0, |acc, op| {
+        if op.operatorId > acc {
+            op.operatorId
+        } else {
+            acc
+        }
+    }) + 1;
+
+    for i in env_arc_ids {
+        // add a new operator per environment arc
+        compiled_algo.graph.operators.push(Operator {
+            operatorId: new_op_id_base + i,
+            operatorType: OperatorType {
+                qbNamespace: vec!["ohua_runtime".into(), "lang".into()],
+                qbName: "id".into(),
+            },
+            nodeType: NodeType::FunctionNode,
+        });
+
+        // reroute any env-arcs with matching id
+        let mut d_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
+        compiled_algo.graph.arcs.direct = d_arcs
+            .drain(..)
+            .map(|mut arc| {
+                if let Env(EnvRefLit { content: env_id }) = arc.source.clone() {
+                    if i == env_id {
+                        arc.source = ArcSource::Local(ArcIdentifier {
+                            operator: new_op_id_base + i,
+                            index: 0,
+                        })
+                    }
+                }
+                arc
+            })
+            .collect();
+
+        compiled_algo.graph.arcs.direct.push(DirectArc {
+            target: ArcIdentifier {
+                operator: new_op_id_base + i,
+                index: 0,
+            },
+            source: ArcSource::Env(EnvRefLit { content: i }),
+        });
+    }
+}
 
 pub fn generate_code(
     compiled_algo: &mut OhuaData,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> TokenStream {
+    handle_environment_arcs(compiled_algo);
     let ctrl_code = generate_ctrls(compiled_algo);
     let nth_code = generate_nths(compiled_algo);
     // handle_environment_arcs(compiled_algo);

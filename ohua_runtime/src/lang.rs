@@ -84,12 +84,17 @@ pub fn ifFun(cond: &Receiver<bool>,
 //     }
 // }
 
+pub fn id<T>(data: T) -> T {
+    data
+}
+
 #[allow(non_snake_case)]
 pub fn seqFun<T: Send>(_: T) -> (bool,isize) {
     (true, 1)
 }
 
 #[allow(non_snake_case)]
+#[allow(unused_variables)]
 pub fn recurFun<T: Send, S: Send>(call_actuals_in: &Receiver<T>,
                                   recur_cond_in: &Receiver<T>,
                                   recur_actuals_in: &Receiver<T>,
