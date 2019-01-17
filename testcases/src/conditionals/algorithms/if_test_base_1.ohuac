@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf iftest::{get_cond_result, executed_yes, executed_no};
+use sf conditionals::iftest::{get_cond_result, executed_yes, executed_no};
 
 fn main() -> String {
     let cond = get_cond_result();

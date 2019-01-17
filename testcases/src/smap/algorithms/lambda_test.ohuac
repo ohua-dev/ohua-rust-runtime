@@ -1,0 +1,14 @@
+ns some_ns;
+
+use sf smap::smap_fns::{generate_value, generate_data, calculate};
+
+fn main() -> Vec<i32> {
+    let x = generate_value();
+    let y = generate_data();
+
+    let f = |d| {calculate(d, x)};
+
+    for num in y {
+        f(num)
+    }
+}
