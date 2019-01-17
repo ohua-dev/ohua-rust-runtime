@@ -5,12 +5,12 @@ use std::iter::Iterator;
 use std::any::Any;
 
 #[allow(non_snake_case)]
-pub fn smapFun<T: Any + 'static + Send, S: Iterator<Item = T> + 'static + Send>
+pub fn smapFun<T: Any + 'static + Send, S: IntoIterator<Item = T> + 'static + Send>
     (inp: &Receiver<S>,
      data_out: &Sender<T>,
      ctrl_out: &Sender<(bool, usize)>,
      collect_out: &Sender<usize>) -> Result<(), RunError> {
-    let data = inp.recv()?;
+    let data = inp.recv()?.into_iter();
     let (_, size) = data.size_hint();
     match size {
         Some(s) => {
