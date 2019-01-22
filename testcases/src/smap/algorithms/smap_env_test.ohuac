@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf smapping (printout, splice);
+use sf smap::smap_fns::{gen_input, printout, splice};
 
 fn main(input: Vec<String>) -> Vec<String> {
     for i in input {

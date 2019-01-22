@@ -19,13 +19,15 @@ fn test_basic_1() {
     assert!(result == "executed: yes");
 }
 
-// fn lambda_in_if() {
-//     #[ohua]
-//     let x = conditionals::algorithms::lambda_test();
+#[test]
+fn lambda_in_if() {
+    #[ohua]
+    let x = conditionals::algorithms::lambda_test();
 
-//     assert!(x == 8);
-// }
+    assert!(x == 8);
+}
 
+// #[test]
 // fn envarcs_with_if() {
 //     let inp = String::from("executed: ");
 
@@ -33,4 +35,12 @@ fn test_basic_1() {
 //     let result = conditionals::algorithms::if_envarcs(true, inp);
 
 //     assert!(result == "executed: yes");
+// }
+
+// #[test]
+// fn if_in_if() {
+//     #[ohua]
+//     let result = conditionals::algorithms::ifinif();
+//
+//     assert!(result == "executed: no");
 // }

@@ -25,3 +25,12 @@ pub fn modify_string_positive(a: String) -> String {
 pub fn modify_string_negative(a: String) -> String {
     a + "no"
 }
+
+// for if_in_if
+pub fn get_ctrl_input() -> bool {
+    true
+}
+
+pub fn get_another_ctrl_input() -> bool {
+    false
+}
