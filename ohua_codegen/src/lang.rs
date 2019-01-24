@@ -99,11 +99,11 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
         fn #fn_name<#(#type_vars:Clone + Send),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
             #(#vars_in:&Receiver<#type_vars2>),* ,
-            #(#vars_out:&Sender<#type_vars3>),*) -> Result<(), RunError> {
+            #(#vars_out:&dyn ArcInput<#type_vars3>),*) -> Result<(), RunError> {
           let (renew_next_time, count) = ctrl_inp.recv()?;
           let (#(#vars , )*) = ( #(#vars_in2.recv()? , )* );
           for _ in 0..count {
-              #(#vars_out2.send(#vars2.clone())?;)*
+              #(#vars_out2.dispatch(#vars2.clone())?;)*
           };
           #sfn_name(ctrl_inp,
                     #(#vars_in3),* ,
@@ -115,7 +115,7 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
         fn #sfn_name<#(#type_vars4:Clone + Send),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
             #(#vars_in4:&Receiver<#type_vars5>),* ,
-            #(#vars_out4:&Sender<#type_vars6>),* ,
+            #(#vars_out4:&dyn ArcInput<#type_vars6>),* ,
             renew: bool,
             state_vars:(#(#type_vars7 , )*)) -> Result<(), RunError> {
           let (renew_next_time, count) = ctrl_inp.recv()?;
@@ -126,7 +126,7 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
                          state_vars
                      };
           for _ in 0..count {
-              #(#vars_out5.send(#vars5.clone())?;)*
+              #(#vars_out5.dispatch(#vars5.clone())?;)*
           };
           #sfn_name(ctrl_inp,
                     #(#vars_in6),* ,
@@ -143,11 +143,11 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 //         fn ctrl_1<T1:Clone>(
 //             ctrl_inp:&Receiver<(bool,isize)>,
 //             var_in_1:&Receiver<T1>,
-//             var_out_1:&Sender<T1>) {
+//             var_out_1:&dyn ArcInput<T1>) {
 //           let (renew_next_time, count) = ctrl_inp.recv().unwrap();
 //           let var_1 = var_in_1.recv().unwrap();
 //           for _ in 0..count {
-//               var_out_1.send(var_1.clone()).unwrap();
+//               var_out_1.dispatch(var_1.clone()).unwrap();
 //           };
 //           ctrl_sf_1(ctrl_inp,
 //                     var_in_1,
@@ -159,7 +159,7 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 //         fn ctrl_sf_1<T1:Clone>(
 //             ctrl_inp:&Receiver<(bool,isize)>,
 //             var_in_1:&Receiver<T1>,
-//             var_out_1:&Sender<T1>,
+//             var_out_1:&dyn ArcInput<T1>,
 //             renew: bool,
 //             state_var: T1) {
 //           let (renew_next_time, count) = ctrl_inp.recv().unwrap();
@@ -170,7 +170,7 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 //                          state_var
 //                      };
 //           for _ in 0..count {
-//               var_out_1.send(var_1.clone()).unwrap();
+//               var_out_1.dispatch(var_1.clone()).unwrap();
 //           };
 //           ctrl_sf_1(ctrl_inp,
 //                     var_in_1,

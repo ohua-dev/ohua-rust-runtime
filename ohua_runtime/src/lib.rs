@@ -1,11 +1,31 @@
 #![feature(fnbox)]
 use std::marker::Send;
-use std::sync::mpsc::{RecvError, SendError};
+use std::sync::mpsc::{RecvError, SendError, Sender};
 use std::thread;
 
 use std::boxed::FnBox;
 
 pub mod lang;
+
+#[derive(Default)]
+pub struct DeadEndArc {}
+
+pub trait ArcInput<T> {
+    fn dispatch(&self, t: T) -> Result<(), SendError<T>>;
+}
+
+impl<T> ArcInput<T> for Sender<T> {
+    fn dispatch(&self, t: T) -> Result<(), SendError<T>> {
+        self.send(t)
+    }
+}
+
+impl<T: Send> ArcInput<T> for DeadEndArc {
+    fn dispatch(&self, _t: T) -> Result<(), SendError<T>> {
+        // drop
+        Ok(())
+    }
+}
 
 pub enum RunError {
     SendFailed,

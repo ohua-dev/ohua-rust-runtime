@@ -519,19 +519,19 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>, op: &i32, final_op: &i32) -> T
     match outputs.len() {
         0 => {
             if op == final_op {
-                quote! { result_snd.send(#r)?; }
+                quote! { result_snd.dispatch(#r)?; }
             } else {
                 quote! {} // drop
             }
         }
         1 => {
             let o = &outputs[0];
-            quote! { #o.send(#r)? }
+            quote! { #o.dispatch(#r)? }
         }
         _ => {
             let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
             quote! {
-                #(#outputs.send(#results.clone())?);*;
+                #(#outputs.dispatch(#results.clone())?);*;
             }
         }
     }
@@ -597,7 +597,7 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
     let fn_lit_namespaces = generate_app_namespaces(&fn_lit_types);
 
     quote! {
-        use std::sync::mpsc::{Receiver, Sender};
+        use std::sync::mpsc::Receiver;
         use std::boxed::FnBox;
         use ohua_runtime::*;
 
@@ -965,7 +965,7 @@ mod tests {
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: { Receiver , Sender } ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: Receiver ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -979,7 +979,7 @@ mod tests {
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < FnBox ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . send ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . send ( r ) ? ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < FnBox ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . dispatch ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . dispatch ( r ) ? ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
@@ -1010,7 +1010,7 @@ mod tests {
         //     "Generated code for ops:\n{}\n",
         //     &(generated_ops.replace(";", ";\n"))
         // );
-        assert!("tasks . push ( || { loop { some_op ( & sf_0_out_0__sf_1_in_0 ) ; } } ) ; tasks . push ( || { loop { some_other_op ( & sf_1_in_0 ) ; } } ) ;" == generated_ops);
+        assert!("tasks . push ( Box :: new ( move || { loop { some_op ( & sf_0_out_0__sf_1_in_0 ) ? ; } } ) ) ; tasks . push ( Box :: new ( move || { loop { some_other_op ( & sf_1_in_0 , & result_snd ) ? ; } } ) ) ;" == generated_ops);
     }
 
     #[test]
