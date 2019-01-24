@@ -8,7 +8,7 @@ use std::any::Any;
 pub fn smapFun<T: Any + 'static + Send, S: IntoIterator<Item = T> + 'static + Send>
     (inp: &Receiver<S>,
      data_out: &Sender<T>,
-     ctrl_out: &Sender<(bool, usize)>,
+     ctrl_out: &Sender<(bool, isize)>,
      collect_out: &Sender<usize>) -> Result<(), RunError> {
     let data = inp.recv()?.into_iter();
     let (_, size) = data.size_hint();
@@ -16,7 +16,7 @@ pub fn smapFun<T: Any + 'static + Send, S: IntoIterator<Item = T> + 'static + Se
         Some(s) => {
             // known size
             collect_out.send(s)?;
-            ctrl_out.send((true,s))?;
+            ctrl_out.send((true,s as isize))?;
             for d in data { data_out.send(d)?; }
         }
         None => {

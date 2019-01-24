@@ -224,10 +224,14 @@ fn generate_in_arcs_vec(
         .collect()
 }
 
-fn generate_out_arcs_vec(op: &i32, arcs: &Vec<DirectArc>, ops: &Vec<Operator>) -> Vec<Ident> {
+fn generate_out_arcs_vec<'a>(
+    op: &i32,
+    arcs: &'a Vec<DirectArc>,
+    ops: &Vec<Operator>,
+) -> Vec<(&'a DirectArc, Ident)> {
     get_out_arcs(&op, &arcs)
         .iter()
-        .map(|arc| generate_out_arc_var(arc, ops))
+        .map(|arc| (*arc, generate_out_arc_var(arc, ops)))
         .collect()
 }
 
@@ -304,14 +308,20 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
                 &(compiled.graph.arcs.direct),
                 &Punctuated::new(),
             ); // ops can never have EnvArgs -> invariant broken
-            let out_arcs = generate_out_arcs_vec(
+            let mut out_arcs = generate_out_arcs_vec(
                 &(op.operatorId),
                 &(compiled.graph.arcs.direct),
                 &(compiled.graph.operators),
             );
 
             if out_arcs.len() > 0 {
-                let c = out_arcs.iter().map(ToTokens::into_token_stream);
+                out_arcs.sort_by_key(|a| match &a.0.source {
+                    &Local(ref arc_id) => arc_id.index,
+                    other => unimplemented!("sorting by key for {:?}", other)
+                });
+                let c = out_arcs
+                    .iter()
+                    .map(|(_, id)| ToTokens::into_token_stream(id));
                 call_args.extend(c);
             } else if op.operatorId == compiled.graph.return_arc.operator {
                 // the return_arc is the output port
@@ -443,11 +453,18 @@ pub fn generate_sfns(
             //     }
             // }
 
-            let out_arcs = generate_out_arcs_vec(
+            // the following assignment is necessary to keep the borrowed value created
+            // by the function alive just long enough to wait until the borrowed values
+            // are dropped after the unzip
+            let mut tmp_out_arcs_vec = generate_out_arcs_vec(
                 &op.operatorId,
                 &(compiled.graph.arcs.direct),
                 &(compiled.graph.operators),
             );
+            let out_arcs = tmp_out_arcs_vec
+                .drain(..)
+                .unzip::<&DirectArc, Ident, Vec<&DirectArc>, Vec<Ident>>()
+                .1;
 
             let sf = get_call_reference(&op.operatorType);
             // let arcs = in_arcs.clone(); // can't reuse var in quote!
