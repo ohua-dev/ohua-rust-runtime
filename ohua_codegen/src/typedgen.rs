@@ -1,17 +1,12 @@
 #![allow(unused_doc_comments)]
-use ohua_types::ArcIdentifier;
-use ohua_types::Envs::EnvRefLit;
-use ohua_types::Envs::FunRefLit;
-use ohua_types::Envs::NumericLit;
-use ohua_types::Envs::UnitLit;
-use std::collections::{BTreeSet, HashMap};
-use std::sync::mpsc::{Receiver, Sender};
-
+use backend_optimizations::run_backend_optimizations;
 use lang::{generate_ctrl_operator, generate_nth};
 use ohua_types::ArcSource::{Env, Local};
-use ohua_types::{
-    ArcSource, Arcs, CompoundArc, DirectArc, NodeType, OhuaData, Operator, OperatorType, StateArc,
-};
+use ohua_types::Envs::*;
+use ohua_types::*;
+
+use std::collections::{BTreeSet, HashMap};
+use std::sync::mpsc::{Receiver, Sender};
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::ToTokens;
@@ -60,7 +55,7 @@ fn get_outputs(op: &i32, arcs: &Vec<DirectArc>) -> Vec<i32> {
     t
 }
 
-fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
+pub fn get_out_arcs<'a>(op: &i32, arcs: &'a Vec<DirectArc>) -> Vec<&'a DirectArc> {
     let t = arcs
         .iter()
         .filter(|arc| match &(arc.source) {
@@ -236,19 +231,31 @@ fn generate_out_arcs_vec<'a>(
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
-    let arcs: Vec<&DirectArc> = compiled
-        .graph
-        .arcs
-        .direct
-        .iter()
-        .filter(|a| filter_env_arc(&a))
-        .collect();
-    let outs = arcs
+    let mut arcs: Vec<DirectArc> = compiled.graph.arcs.direct.clone();
+
+    arcs.retain(filter_env_arc);
+
+    // separate normal arcs and dead arcs
+    let (normal_arcs, dead_ends): (Vec<DirectArc>, Vec<DirectArc>) =
+        arcs.into_iter().partition(|arc| {
+            compiled
+                .graph
+                .operators
+                .iter()
+                .find(|x| x.operatorId == arc.target.operator)
+                .is_some()
+        });
+
+    let outs = normal_arcs
         .iter()
         .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
-    let ins = arcs
+    let ins = normal_arcs
         .iter()
         .map(|arc| generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index)));
+
+    let dead_outs = dead_ends
+        .iter()
+        .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
 
     let state_outs = compiled
         .graph
@@ -265,6 +272,7 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
 
     quote! {
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
+        #(let #dead_outs = DeadEndArc::default();)*
         #(let (#state_outs, #state_ins) = std::sync::mpsc::channel();)*
     }
 }
@@ -317,7 +325,7 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
             if out_arcs.len() > 0 {
                 out_arcs.sort_by_key(|a| match &a.0.source {
                     &Local(ref arc_id) => arc_id.index,
-                    other => unimplemented!("sorting by key for {:?}", other)
+                    other => unimplemented!("sorting by key for {:?}", other),
                 });
                 let c = out_arcs
                     .iter()
@@ -843,6 +851,8 @@ pub fn generate_code(
     compiled_algo: &mut OhuaData,
     algo_call_args: &Punctuated<Expr, Token![,]>,
 ) -> TokenStream {
+    run_backend_optimizations(compiled_algo);
+
     handle_environment_arcs(compiled_algo);
     let ctrl_code = generate_ctrls(compiled_algo);
     let nth_code = generate_nths(compiled_algo);

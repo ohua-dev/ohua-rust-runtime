@@ -4,7 +4,7 @@
 //!
 //! TODO: Expand me! (Issue: [#15](https://github.com/ohua-dev/ohua-rust-runtime/issues/15))
 #![allow(dead_code, unused_imports, unused_variables)]
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 
 extern crate serde;
 #[macro_use]
@@ -19,14 +19,14 @@ extern crate tempdir;
 extern crate proc_macro;
 extern crate proc_macro2;
 
+mod backend_optimizations;
 mod errors;
+mod lang;
 mod ohua_types;
 mod ohuac;
 mod parse;
 mod typedgen;
-mod lang;
 
-use typedgen::*;
 use errors::*;
 use ohua_types::OhuaData;
 use ohuac::OhuaProduction;
@@ -37,6 +37,7 @@ use std::fs::{self, File};
 use std::io;
 use std::path::PathBuf;
 use tempdir::TempDir;
+use typedgen::*;
 
 use self::proc_macro::TokenStream;
 use syn::export::ToTokens;
@@ -104,7 +105,9 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
         x
     } else {
         let exp = syn::parse2(final_code).unwrap();
-        syn::Stmt::Semi(exp, syn::token::Semi::default()).into_token_stream().into()
+        syn::Stmt::Semi(exp, syn::token::Semi::default())
+            .into_token_stream()
+            .into()
     }
 }
 
