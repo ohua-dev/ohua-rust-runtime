@@ -1,18 +1,7 @@
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
-use syn::parse::Error;
-use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{Expr, ExprCall, ExprPath, Local, Stmt};
-
-// pub fn parse_ohua_call2(args: TokenStream2, input: TokenStream2) -> (ExprPath, Punctuated<Expr, Comma>){
-//     if !args.is_empty() {
-//         panic!("The #[ohua] macro does currently not support macro arguments.");
-//     }
-//
-//     parse_call(syn::parse2(input))
-// }
 
 pub fn parse_ohua_call(
     args: TokenStream,

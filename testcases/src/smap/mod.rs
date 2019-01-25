@@ -47,13 +47,13 @@ fn smap_with_envarc_input() {
 //     assert!(x == EXPECTED_SPIDER_VEC);
 // }
 
-#[test]
-fn smap_seq_test() {
-    #[ohua]
-    let x = smap::algorithms::seq_test();
-
-    assert!(x == vec![4, 4, 4, 4, 4, 4, 4]);
-}
+// #[test]
+// fn smap_seq_test() {
+//     #[ohua]
+//     let x = smap::algorithms::seq_test();
+//
+//     assert!(x == vec![4, 4, 4, 4, 4, 4, 4]);
+// }
 
 // #[test]
 // fn if_in_smap() {

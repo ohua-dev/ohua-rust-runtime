@@ -5,14 +5,12 @@ use ohua_types::ArcSource::{Env, Local};
 use ohua_types::Envs::*;
 use ohua_types::*;
 
-use std::collections::{BTreeSet, HashMap};
-use std::sync::mpsc::{Receiver, Sender};
+use std::collections::BTreeSet;
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::ToTokens;
-use syn::parse::Parse;
 use syn::punctuated::Punctuated;
-use syn::{Expr, Path};
+use syn::Expr;
 
 fn get_op_id(val: &ArcSource) -> &i32 {
     match val {
@@ -30,6 +28,8 @@ fn get_num_inputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
         .count()
 }
 
+// TODO: Is this still needed?
+#[allow(dead_code)]
 fn get_num_outputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
     arcs.iter()
         .filter(|arc| match &(arc.source) {
@@ -39,6 +39,8 @@ fn get_num_outputs(op: &i32, arcs: &Vec<DirectArc>) -> usize {
         .count()
 }
 
+// TODO: Is this still needed?
+#[allow(dead_code)]
 fn get_outputs(op: &i32, arcs: &Vec<DirectArc>) -> Vec<i32> {
     let mut t: Vec<i32> = arcs
         .iter()
@@ -212,7 +214,7 @@ fn generate_in_arcs_vec(
                 }
                 _ => unimplemented!("generate_in_arcs_vec -> other literals"),
             },
-            Local(ref arc) => {
+            Local(_) => {
                 generate_var_for_in_arc(&a.target.operator, &a.target.index).into_token_stream()
             }
         })
@@ -537,7 +539,7 @@ fn generate_send(r: &Ident, outputs: &Vec<Ident>, op: &i32, final_op: &i32) -> T
             quote! { #o.dispatch(#r)? }
         }
         _ => {
-            let results: Vec<Ident> = outputs.iter().map(|x| r.clone()).collect();
+            let results: Vec<Ident> = outputs.iter().map(|_| r.clone()).collect();
             quote! {
                 #(#outputs.dispatch(#results.clone())?);*;
             }
@@ -894,11 +896,6 @@ mod tests {
 
     use super::*;
     use parse::tests::parse_call;
-    use syn::ExprPath;
-    use syn::Path;
-    use syn::PathSegment;
-
-    use std::sync::mpsc;
 
     use ohua_types::ArcIdentifier;
     use ohua_types::ArcSource;

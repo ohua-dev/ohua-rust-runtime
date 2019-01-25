@@ -3,7 +3,6 @@
 //! This program generates a rust runtime from an [Ohua](https://github.com/ohua-dev) algorithm, which can be defined in an `ohuac` file.
 //!
 //! TODO: Expand me! (Issue: [#15](https://github.com/ohua-dev/ohua-rust-runtime/issues/15))
-#![allow(dead_code, unused_imports, unused_variables)]
 #![recursion_limit = "128"]
 
 extern crate serde;
@@ -29,20 +28,15 @@ mod typedgen;
 
 use errors::*;
 use ohua_types::OhuaData;
-use ohuac::OhuaProduction;
 use parse::parse_ohua_call;
 use std::env::current_dir;
-use std::error::Error;
-use std::fs::{self, File};
-use std::io;
+use std::fs::File;
 use std::path::PathBuf;
 use tempdir::TempDir;
 use typedgen::*;
 
 use self::proc_macro::TokenStream;
 use syn::export::ToTokens;
-use syn::punctuated::Punctuated;
-use syn::{Expr, ExprBlock, ExprCall, ExprPath, Local, Stmt};
 
 /*
  * #[ohua] name::space::algo(arg1, arg2);
