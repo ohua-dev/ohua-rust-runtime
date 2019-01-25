@@ -1,13 +1,13 @@
 # Testcases
 
-This folder contains the test suite that checks and verifies the correct function and integration of the compiler plugin itself as well as the operators that are part of Ohua.
+This crate contains the test suite that checks and verifies the correct function and integration of the compiler plugin itself as well as the operators that are part of Ohua.
 These tests are run as part of the CI process after every push to `master` but if you want to run them yourself, just execute
 
-```
-./run_tests.sh
+```text
+cargo test
 ```
 
-The script assumes every folder contains a valid Cargo project and tries to execute it. To exclude a test from execution, place a file named `.skipfile` in the test case folder.
+**TODO: Fix references!**
 
 ## Function tests
 
@@ -21,7 +21,6 @@ The script assumes every folder contains a valid Cargo project and tries to exec
 | [`mainargs`](mainargs/)                                   | Do arguments to the algorithm (read: envarcs) work in general? Are the arguments moved to the correct threads?                                            |
 | [`mainargs_clone`](mainargs_clone/)                       | Is data from environment arcs cloned correctly if necessary?                                                                                              |
 | [`mainargs_reuse_across_ops`](mainargs_reuse_across_ops/) | Can we put (cloned) envarc data into different threads or does that pose a problem to thread safety?                                                      |
-| [`namespaces`](namespaces/)                               | Algorithm addressation across modules                                                                                                                     |
 | [`multiple_algos`](multiple_algos/)                       | Running multiple algorithms at once                                                                                                                       |
 
 ## Operator tests
