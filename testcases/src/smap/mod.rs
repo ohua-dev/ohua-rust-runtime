@@ -2,18 +2,18 @@ mod smap_fns;
 
 use ohua_codegen::ohua;
 
-static EXPECTED_SPIDER_VEC: Vec<&'static str> = vec![
-    "I hate giant spiders",
-    "Why are there everywhere giant spiders",
-    "there is a huge pile of giant spiders",
-];
-
 #[test]
 fn smap() {
     #[ohua]
     let x = smap::algorithms::smap_test();
 
-    assert!(x == EXPECTED_SPIDER_VEC);
+    assert!(
+        x == vec![
+            "I hate giant spiders",
+            "Why are there everywhere giant spiders",
+            "there is a huge pile of giant spiders"
+        ]
+    );
 }
 
 #[test]
@@ -35,7 +35,13 @@ fn smap_with_envarc_input() {
     #[ohua]
     let x = smap::algorithms::smap_env_test(inputs);
 
-    assert!(x == EXPECTED_SPIDER_VEC);
+    assert!(
+        x == vec![
+            "I hate giant spiders",
+            "Why are there everywhere giant spiders",
+            "there is a huge pile of giant spiders"
+        ]
+    );
 }
 
 // FIXME: Frozen until closure of ohua-dev/ohua-code#28
@@ -44,7 +50,13 @@ fn smap_with_envarc_input() {
 //     #[ohua]
 //     let x = smap::algorithms::smap_env_in_loop(String::from(" giant spiders"));
 //
-//     assert!(x == EXPECTED_SPIDER_VEC);
+//     assert!(
+//         x == vec![
+//             "I hate giant spiders",
+//             "Why are there everywhere giant spiders",
+//             "there is a huge pile of giant spiders"
+//         ]
+//     );
 // }
 
 // #[test]
