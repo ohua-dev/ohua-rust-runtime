@@ -27,6 +27,7 @@ fn lambda_in_if() {
     assert!(x == 8);
 }
 
+// FIXME: Frozen until closure of ohua-dev/ohua-code#28
 // #[test]
 // fn envarcs_with_if() {
 //     let inp = String::from("executed: ");
@@ -37,6 +38,7 @@ fn lambda_in_if() {
 //     assert!(result == "executed: yes");
 // }
 
+// FIXME: Frozen until closure of ohua-dev/ohua-code#29
 // #[test]
 // fn if_in_if() {
 //     #[ohua]

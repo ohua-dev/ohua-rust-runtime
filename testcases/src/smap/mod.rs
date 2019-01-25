@@ -2,12 +2,18 @@ mod smap_fns;
 
 use ohua_codegen::ohua;
 
+static EXPECTED_SPIDER_VEC: Vec<&'static str> = vec![
+    "I hate giant spiders",
+    "Why are there everywhere giant spiders",
+    "there is a huge pile of giant spiders",
+];
+
 #[test]
 fn smap() {
     #[ohua]
     let x = smap::algorithms::smap_test();
 
-    println!("Received: {:?}", x);
+    assert!(x == EXPECTED_SPIDER_VEC);
 }
 
 #[test]
@@ -15,11 +21,11 @@ fn smap_with_lambdas() {
     #[ohua]
     let x = smap::algorithms::lambda_test();
 
-    println!("Received: {:?}", x);
+    assert!(x == vec![8, 168, 28, 48, 740, 3772, 1500]);
 }
 
 #[test]
-fn smap_with_envarcs() {
+fn smap_with_envarc_input() {
     let inputs: Vec<String> = vec![
         "I hate".into(),
         "Why are there everywhere".into(),
@@ -29,5 +35,30 @@ fn smap_with_envarcs() {
     #[ohua]
     let x = smap::algorithms::smap_env_test(inputs);
 
-    println!("Received: {:?}", x);
+    assert!(x == EXPECTED_SPIDER_VEC);
 }
+
+// FIXME: Frozen until closure of ohua-dev/ohua-code#28
+// #[test]
+// fn smap_with_envarc_in_loop() {
+//     #[ohua]
+//     let x = smap::algorithms::smap_env_in_loop(String::from(" giant spiders"));
+//
+//     assert!(x == EXPECTED_SPIDER_VEC);
+// }
+
+#[test]
+fn smap_seq_test() {
+    #[ohua]
+    let x = smap::algorithms::seq_test();
+
+    assert!(x == vec![4, 4, 4, 4, 4, 4, 4]);
+}
+
+// #[test]
+// fn if_in_smap() {
+//     #[ohua]
+//     let x = smap::algorithms::if_in_smap();
+//
+//     assert!(x == vec![8, 168, 0, 48, 0, 0, 0]);
+// }

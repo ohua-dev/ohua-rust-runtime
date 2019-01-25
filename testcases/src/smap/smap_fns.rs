@@ -16,6 +16,14 @@ pub fn splice(s: String) -> String {
     s + " giant spiders"
 }
 
+pub fn fuse(s1: String, s2: String) -> String {
+    s1 + &s2
+}
+
+pub fn is_even(num: i32) -> bool {
+    (num % 2) == 0
+}
+
 // for `smap_with_lambdas`
 pub fn generate_value() -> i32 {
     4
