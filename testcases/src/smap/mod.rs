@@ -45,8 +45,9 @@ fn smap_with_envarc_input() {
 }
 
 // FIXME: Frozen until closure of ohua-dev/ohua-code#28
-// #[test]
-// fn smap_with_envarc_in_loop() {
+#[test]
+fn smap_with_envarc_in_loop() {
+    unimplemented!("Frozen until closure of ohua-dev/ohua-code#28")
 //     #[ohua]
 //     let x = smap::algorithms::smap_env_in_loop(String::from(" giant spiders"));
 //
@@ -57,7 +58,7 @@ fn smap_with_envarc_input() {
 //             "there is a huge pile of giant spiders"
 //         ]
 //     );
-// }
+}
 
 #[test]
 fn smap_seq_test() {
@@ -67,8 +68,9 @@ fn smap_seq_test() {
     assert!(x == vec![4, 4, 4, 4, 4, 4, 4]);
 }
 
-// #[test]
-// fn if_in_smap() {
+#[test]
+fn if_in_smap() {
+    unimplemented!("Requires Bugfix: too many arguments for smapFun")
 //     // #[ohua]
 //     // let x = smap::algorithms::if_in_smap();
 //
@@ -266,4 +268,9 @@ fn smap_seq_test() {
 //     };
 //
 //     assert!(x == vec![8, 168, 0, 48, 0, 0, 0]);
-// }
+}
+
+#[test]
+fn smap_in_smap() {
+    unimplemented!("Not implemented yet")
+}

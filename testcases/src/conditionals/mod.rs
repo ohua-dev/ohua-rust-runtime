@@ -28,21 +28,23 @@ fn lambda_in_if() {
 }
 
 // FIXME: Frozen until closure of ohua-dev/ohua-code#28
-// #[test]
-// fn envarcs_with_if() {
+#[test]
+fn envarcs_with_if() {
+    unimplemented!("Frozen until closure of ohua-dev/ohua-code#28")
 //     let inp = String::from("executed: ");
 
 //     #[ohua]
 //     let result = conditionals::algorithms::if_envarcs(true, inp);
 
 //     assert!(result == "executed: yes");
-// }
+}
 
 // FIXME: Frozen until closure of ohua-dev/ohua-code#29
-// #[test]
-// fn if_in_if() {
+#[test]
+fn if_in_if() {
+    unimplemented!("Frozen until closure of ohua-dev/ohua-code#29")
 //     #[ohua]
 //     let result = conditionals::algorithms::ifinif();
 //
 //     assert!(result == "executed: no");
-// }
+}
