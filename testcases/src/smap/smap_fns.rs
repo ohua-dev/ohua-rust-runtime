@@ -36,3 +36,10 @@ pub fn generate_data() -> Vec<i32> {
 pub fn calculate(x: i32, y: i32) -> i32 {
     x * y
 }
+
+pub fn gen_nested_vec() -> Vec<Vec<String>> {
+    vec![
+        vec!["original".into(), "modified".into()],
+        vec!["modified".into(), "original".into()],
+    ]
+}

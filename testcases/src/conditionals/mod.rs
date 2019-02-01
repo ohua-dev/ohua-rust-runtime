@@ -1,5 +1,5 @@
-mod iftest;
 mod calculations;
+mod iftest;
 
 use ohua_codegen::ohua;
 
@@ -27,24 +27,24 @@ fn lambda_in_if() {
     assert!(x == 8);
 }
 
-// FIXME: Frozen until closure of ohua-dev/ohua-code#28
+// FIXME: Frozen until closure of ohua-dev/ohua-core#28
 #[test]
 fn envarcs_with_if() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-code#28")
-//     let inp = String::from("executed: ");
-
-//     #[ohua]
-//     let result = conditionals::algorithms::if_envarcs(true, inp);
-
-//     assert!(result == "executed: yes");
+    unimplemented!("Frozen until closure of ohua-dev/ohua-core#28")
+    // let inp = String::from("executed: ");
+    //
+    // #[ohua]
+    // let result = conditionals::algorithms::if_envarcs(true, inp);
+    //
+    // assert!(result == "executed: yes");
 }
 
 // FIXME: Frozen until closure of ohua-dev/ohua-code#29
 #[test]
 fn if_in_if() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-code#29")
-//     #[ohua]
-//     let result = conditionals::algorithms::ifinif();
-//
-//     assert!(result == "executed: no");
+    unimplemented!("Generated `ctrl` Operator has too many out-arcs supplied as inputs")
+    // #[ohua]
+    // let result = conditionals::algorithms::ifinif();
+    //
+    // assert!(result == "executed: no");
 }

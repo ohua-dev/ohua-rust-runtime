@@ -1,0 +1,14 @@
+ns some_ns;
+
+use sf smap::smap_fns::{gen_nested_vec, splice};
+
+fn main() -> Vec<Vec<String>> {
+    let input = gen_nested_vec();
+
+    for v in input {
+        for i in v {
+            let st = splice(i);
+            st
+        }
+    }
+}

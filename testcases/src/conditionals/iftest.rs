@@ -6,7 +6,7 @@ pub fn get_input() -> String {
     String::from("executed: ")
 }
 
-pub fn id<T:Clone + Send>(x:T) -> T {
+pub fn id<T: Clone + Send>(x: T) -> T {
     x
 }
 

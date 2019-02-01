@@ -19,7 +19,6 @@ pub fn parse_ohua_call(
 
     let (expression, assignment) = match ast {
         Stmt::Local(mut l) => {
-            println!("found local assignment");
             let e = if let Some(exp) = l.init {
                 *exp.1
             } else {
