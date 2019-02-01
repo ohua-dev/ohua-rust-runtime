@@ -1,0 +1,16 @@
+ns some_ns;
+
+use sf conditionals::iftest::{get_ctrl_input, get_vec_input, times_2};
+
+fn main() -> Vec<i32> {
+    let cond = get_ctrl_input();
+
+    if (cond) {
+        let y = get_vec_input();
+        for num in y {
+            times_2(num)
+        }
+    } else {
+        get_vec_input()
+    }
+}

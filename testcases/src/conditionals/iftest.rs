@@ -34,3 +34,13 @@ pub fn get_ctrl_input() -> bool {
 pub fn get_another_ctrl_input() -> bool {
     false
 }
+
+// for smap_in_if
+
+fn get_vec_input() -> Vec<i32> {
+    vec![2, 4, 6, 8, 10, 12]
+}
+
+fn times_2(num: i32) -> i32 {
+    num * 2
+}

@@ -48,3 +48,21 @@ fn if_in_if() {
     //
     // assert!(result == "executed: no");
 }
+
+#[test]
+fn smap_in_if_no_passthrough() {
+    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    // #[ohua]
+    // let res = conditionals::algorithms::smap_in_if_no_passthrough();
+    //
+    // assert!(res == vec![4, 8, 12, 16, 20, 24]);
+}
+
+#[test]
+fn smap_in_if_passthrough() {
+    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    // #[ohua]
+    // let res = conditionals::algorithms::smap_in_if_passthrough();
+    //
+    // assert!(res == vec![4, 8, 12, 16, 20, 24]);
+}
