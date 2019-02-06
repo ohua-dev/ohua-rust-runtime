@@ -771,6 +771,74 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
     }
 }
 
+mod generate_recur {
+
+    extern crate bit_set;
+
+    use ohua_types::*;
+    use lang::generate_recur;
+    use self::bit_set::BitSet;
+    use proc_macro2::{TokenStream};
+
+    type OpId = i32;
+    type Arity = usize;
+    type Index = i32;
+
+    const OHUA_NAMESPACE : [&str; 2] = ["ohua", "lang"];
+    const RECUR_NAMESPACE : [&str; 2] = OHUA_NAMESPACE;
+    const RECUR_NAME : &str = "recurFun";
+
+    fn is_recur(op: &Operator) -> bool {
+        let ty = &op.operatorType;
+        ty.qbNamespace == RECUR_NAMESPACE
+            && ty.qbName == RECUR_NAME
+            && op.nodeType == NodeType::OperatorNode
+    }
+
+    fn determine_recursion_arity(op_id: OpId, arcs: &Arcs) -> Arity {
+        let mut x : Vec<Index> =
+            arcs.direct.iter()
+            .map(|a| &a.target)
+            .filter(|t| t.operator == op_id).map(|t| t.index)
+            .collect();
+        x.dedup();
+        x.len()
+    }
+
+    struct SimpleTracker(BitSet);
+
+    impl SimpleTracker {
+        pub fn new() -> SimpleTracker {
+            SimpleTracker(BitSet::new())
+        }
+        pub fn tick(&mut self, i:usize) {
+            self.0.insert(i);
+        }
+        pub fn ticked(& self) -> self::bit_set::Iter<u32> {
+            self.0.iter()
+        }
+    }
+
+    pub fn generate(algo: &mut OhuaData) -> TokenStream {
+        let mut arity_tracker = SimpleTracker::new();
+        for op in algo.graph.operators.iter_mut() {
+            if is_recur(op) {
+                let ref mut ty = &mut op.operatorType;
+                ty.qbNamespace = Vec::new();
+                let arity = determine_recursion_arity(op.operatorId, &algo.graph.arcs);
+                ty.qbName = generate_recur::generate_fun_name(arity);
+                arity_tracker.tick(arity as usize);
+            }
+        }
+
+        let code = arity_tracker.ticked().map(generate_recur::generate);
+
+        quote! {
+            #(#code)*
+        }
+    }
+}
+
 /// This function captures environment arguments in an `id` operator. The rationale
 /// behind this move is that this seemed -- at the time this was conceived -- the best
 /// option for enabling multiple uses of a main argument, which requires cloning.
@@ -858,6 +926,7 @@ pub fn generate_code(
     handle_environment_arcs(compiled_algo);
     let ctrl_code = generate_ctrls(compiled_algo);
     let nth_code = generate_nths(compiled_algo);
+    let recur_code = generate_recur::generate(compiled_algo);
     // handle_environment_arcs(compiled_algo);
     let header_code = generate_imports(
         &compiled_algo.graph.operators,
@@ -877,6 +946,7 @@ pub fn generate_code(
 
             #ctrl_code
             #nth_code
+            #recur_code
 
             #arc_code
             let (result_snd, result_rcv) = std::sync::mpsc::channel();

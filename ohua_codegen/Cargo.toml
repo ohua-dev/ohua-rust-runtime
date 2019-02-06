@@ -14,5 +14,7 @@ syn = { version = "0.15", features = ["full", "extra-traits"] }
 quote = "0.6" # same version as in syn
 proc-macro2 = "0.4"
 
+bit-set = "0.5"
+
 [lib]
 proc-macro = true

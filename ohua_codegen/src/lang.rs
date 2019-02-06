@@ -177,3 +177,62 @@ pub fn generate_nth(num: &i32, len: &i32) -> TokenStream {
 //         let #fn_name = |t| { t.#n };
 //     }
 // }
+
+pub mod generate_recur {
+
+    use proc_macro2::{Ident, Span, TokenStream};
+
+    type Len = usize;
+
+    fn std_ident(s:&str) -> Ident {
+        Ident::new(s, Span::call_site())
+    }
+
+    pub fn generate_fun_name(len: Len) -> String {
+        format!("recur_{}", len)
+    }
+
+    pub fn generate(len: Len) -> TokenStream {
+        let fn_name = std_ident(&generate_fun_name(len));
+        let ref initial_args : Vec<Ident> =
+            (0..len).map(|idx| std_ident(&format!("init_{}", idx.to_string()))).collect() ;
+        let ref arg_types : Vec<Ident> = (0..len).map(|idx| std_ident(&format!("T{}", idx.to_string()))).collect();
+        let ref loop_args : Vec<Ident> =
+        (0..len).map(|idx| std_ident(&format!("loop_{}", idx.to_string()))).collect() ;
+        let ref return_type = std_ident("R");
+
+        let return_type0 = return_type;
+        let return_type1 = return_type;
+        let return_type2 = return_type;
+
+        let arg_types0 = arg_types;
+        let arg_types1 = arg_types;
+        let arg_types2 = arg_types;
+
+        let loop_args0 = loop_args;
+
+        let initial_args0 = initial_args;
+
+        quote! {
+            fn #fn_name<#(#arg_types0 : Send),*, #return_type2 : Send>
+                (condition: &Receiver<bool>,
+                 result_arc: &Receiver<#return_type0>,
+                 #(#initial_args0 : #arg_types1),*,
+                 #(#loop_args0 : #arg_types2),*
+                 ctrl_arc: &dyn ArcInput<bool>,
+                 cont_arc: &dyn ArcInput<(#(#arg_types),*)>,
+                 finish_arc: &dyn ArcInput<#return_type1>,
+                ) {
+                    loop {
+                        out_arc.send(
+                            (true, (#(#initial_args.recv().unwrap()),*))
+                        );
+                        while (condition.recv().unwrap()) {
+                    out_arc.send((true, (#(#loop_args.recv().unwrap()),*)));
+                        }
+                        finish_arc.send(result_arc.recv());
+                    }
+                }
+        }
+    }
+}
