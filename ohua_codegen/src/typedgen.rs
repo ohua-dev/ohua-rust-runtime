@@ -784,7 +784,7 @@ mod generate_recur {
     type Arity = usize;
     type Index = i32;
 
-    const OHUA_NAMESPACE : [&str; 2] = ["ohua", "lang"];
+    const OHUA_NAMESPACE : [&str; 2] = ["ohua_runtime", "lang"];
     const RECUR_NAMESPACE : [&str; 2] = OHUA_NAMESPACE;
     const RECUR_NAME : &str = "recurFun";
 
@@ -802,7 +802,7 @@ mod generate_recur {
             .filter(|t| t.operator == op_id).map(|t| t.index)
             .collect();
         x.dedup();
-        x.len()
+        (x.len() - 2) / 2
     }
 
     struct SimpleTracker(BitSet);
@@ -926,6 +926,7 @@ pub fn generate_code(
     handle_environment_arcs(compiled_algo);
     let ctrl_code = generate_ctrls(compiled_algo);
     let nth_code = generate_nths(compiled_algo);
+    //print!("{:?}", compiled_algo.graph.operators);
     let recur_code = generate_recur::generate(compiled_algo);
     // handle_environment_arcs(compiled_algo);
     let header_code = generate_imports(
