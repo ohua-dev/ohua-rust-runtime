@@ -39,7 +39,6 @@ fn envarcs_with_if() {
     // assert!(result == "executed: yes");
 }
 
-// FIXME: Frozen until closure of ohua-dev/ohua-code#29
 #[test]
 fn if_in_if() {
     unimplemented!("Generated `ctrl` Operator has too many out-arcs supplied as inputs")
@@ -51,18 +50,18 @@ fn if_in_if() {
 
 #[test]
 fn smap_in_if_no_passthrough() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
-    // #[ohua]
-    // let res = conditionals::algorithms::smap_in_if_no_passthrough();
-    //
-    // assert!(res == vec![4, 8, 12, 16, 20, 24]);
+    // unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    #[ohua]
+    let res = conditionals::algorithms::smap_in_if_no_passthrough();
+
+    assert!(res == vec![4, 8, 12, 16, 20, 24]);
 }
 
 #[test]
 fn smap_in_if_passthrough() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
-    // #[ohua]
-    // let res = conditionals::algorithms::smap_in_if_passthrough();
-    //
-    // assert!(res == vec![4, 8, 12, 16, 20, 24]);
+    // unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    #[ohua]
+    let res = conditionals::algorithms::smap_in_if_passthrough();
+
+    assert!(res == vec![4, 8, 12, 16, 20, 24]);
 }
