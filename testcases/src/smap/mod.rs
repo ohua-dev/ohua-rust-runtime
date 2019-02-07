@@ -111,10 +111,10 @@ fn smap_with_envarc_in_loop() {
 }
 
 #[test]
-fn smap_seq_test() {
+fn smap_independent_fns_test() {
     unimplemented!("Requires Bugfix: Too few data sent from unitFn to channel `collect` pulls from. (See comments in testcase!)");
     // #[ohua]
-    // let x = smap::algorithms::seq_test();
+    // let x = smap::algorithms::independent_fns();
 
     // let x = {
     //     use ohua_runtime::lang::collect;
