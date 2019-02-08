@@ -8,5 +8,5 @@ fn go (n:i32) {
 }
 
 fn main() {
-   go(0)
+   ohua::lang::id(go(0))
 }
