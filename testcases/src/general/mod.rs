@@ -1,6 +1,6 @@
+mod house;
 mod produce_consume;
 mod strings;
-mod house;
 
 use ohua_codegen::ohua;
 

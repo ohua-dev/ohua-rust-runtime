@@ -20,7 +20,7 @@ pub fn generate_string() -> String {
 
 pub fn recv_number() -> i32 {
     42
-} 
+}
 
 pub fn combine(s: String, num: i32) -> String {
     format!("{}{}", s, num)

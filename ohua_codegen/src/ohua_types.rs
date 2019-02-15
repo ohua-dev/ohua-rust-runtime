@@ -36,7 +36,7 @@ pub struct DFGraph {
 #[derive(Deserialize, Debug)]
 pub struct Arcs {
     pub direct: Vec<DirectArc>,
-    pub compound: Vec<CompoundArc>,// FIXME to be removed!
+    pub compound: Vec<CompoundArc>, // FIXME to be removed!
     pub state: Vec<StateArc>,
 }
 
@@ -124,18 +124,19 @@ pub enum ArcSource {
 pub enum Envs {
     NumericLit {
         #[serde(rename(deserialize = "contents"))]
-        content: i32
+        content: i32,
     },
     EnvRefLit {
         #[serde(rename(deserialize = "contents"))]
-        content: i32
+        content: i32,
     },
-    FunRefLit { contents: (OperatorType,i32) },
+    FunRefLit {
+        contents: (OperatorType, i32),
+    },
     // FIXME the above is a hack for now. it should be this:
     // FunRefLit { contents: OperatorType },
-    UnitLit {}
+    UnitLit {},
 }
-
 
 /// Represents a dependency to a stateful function.
 #[derive(Deserialize, Debug, Clone)]
@@ -213,7 +214,12 @@ impl fmt::Display for OperatorType {
             namesp += format!("String::from(\"{}\"), ", space).as_str();
         }
 
-        write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\")}}", namesp = namesp, name = self.qbName)
+        write!(
+            f,
+            "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\")}}",
+            namesp = namesp,
+            name = self.qbName
+        )
     }
 }
 
@@ -268,14 +274,13 @@ impl fmt::Display for ArcSource {
 impl fmt::Display for Envs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Envs::NumericLit{ content:i } => write!(f, "NumericLit({})", i),
-            Envs::EnvRefLit{ content:i } => write!(f, "EnvRefLit({})", i),
-            Envs::FunRefLit{ contents:s } => write!(f, "FunRefLit({})", s.0),
-            Envs::UnitLit{} => write!(f, "UnitLit()"),
+            Envs::NumericLit { content: i } => write!(f, "NumericLit({})", i),
+            Envs::EnvRefLit { content: i } => write!(f, "EnvRefLit({})", i),
+            Envs::FunRefLit { contents: s } => write!(f, "FunRefLit({})", s.0),
+            Envs::UnitLit {} => write!(f, "UnitLit()"),
         }
     }
 }
-
 
 impl fmt::Display for SfDependency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -5,8 +5,8 @@ use std::thread;
 
 use std::boxed::FnBox;
 
-pub mod lang;
 pub mod arcs;
+pub mod lang;
 
 /// Error type representing possible errors when sending or receiving data via arcs.
 pub enum RunError {

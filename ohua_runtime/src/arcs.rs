@@ -27,14 +27,12 @@ impl<T: Send> ArcInput<T> for DeadEndArc {
 
 /// A cloning dispatch queue as abstraction for output ports that serve more than one arc.
 pub struct DispatchQueue<T: Send> {
-    senders: Vec<Sender<T>>
+    senders: Vec<Sender<T>>,
 }
 
 impl<T: Send> DispatchQueue<T> {
     pub fn new(senders: Vec<Sender<T>>) -> DispatchQueue<T> {
-        DispatchQueue {
-            senders: senders
-        }
+        DispatchQueue { senders: senders }
     }
 }
 

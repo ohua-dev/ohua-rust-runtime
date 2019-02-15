@@ -59,7 +59,8 @@ fn custom_types_via_envarcs() {
     };
 
     #[ohua]
-    let new_house = main_arguments::algorithms::custom_types(home, String::from("1323 2nd Street"), humans);
+    let new_house =
+        main_arguments::algorithms::custom_types(home, String::from("1323 2nd Street"), humans);
 
     println!("We now got {} inhabitants!", new_house.inhabitants.len());
 }

@@ -265,7 +265,10 @@ fn generate_out_arcs_vec<'a>(
     }
     out_arcs.sort_unstable_by_key(|x| x.0);
 
-    let res = out_arcs.drain(..).unzip::<&i32, (&'a DirectArc, Ident), Vec<&i32>, Vec<(&'a DirectArc, Ident)>>().1;
+    let res = out_arcs
+        .drain(..)
+        .unzip::<&i32, (&'a DirectArc, Ident), Vec<&i32>, Vec<(&'a DirectArc, Ident)>>()
+        .1;
 
     res
 }
@@ -306,7 +309,6 @@ fn find_out_port_pairs<'a>(arcs: &'a Vec<DirectArc>) -> Vec<Vec<&'a DirectArc>> 
                         if src.index == current_idx {
                             // we are still filling the same group
                             selected_arcs.push(arc);
-
                         } else {
                             // start of a new group -> store away the old one
                             if selected_arcs.len() == 1 {
