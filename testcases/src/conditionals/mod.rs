@@ -27,10 +27,9 @@ fn lambda_in_if() {
     assert!(x == 8);
 }
 
-// FIXME: Frozen until closure of ohua-dev/ohua-core#28
 #[test]
 fn envarcs_with_if() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#28")
+    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#28")
     // let inp = String::from("executed: ");
     //
     // #[ohua]
@@ -49,7 +48,7 @@ fn if_in_if() {
 
 #[test]
 fn smap_in_if_no_passthrough() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#29")
     // #[ohua]
     // let res = conditionals::algorithms::smap_in_if_no_passthrough();
     //
@@ -58,7 +57,7 @@ fn smap_in_if_no_passthrough() {
 
 #[test]
 fn smap_in_if_passthrough() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#29")
     // #[ohua]
     // let res = conditionals::algorithms::smap_in_if_passthrough();
     //
