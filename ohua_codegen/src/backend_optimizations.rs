@@ -5,6 +5,7 @@ use typedgen::get_out_arcs;
 /// this optimization pass removes any such operators, leaving behind (implicit)
 /// DeadEndArcs
 fn remove_unused_ctrl(compiled_algo: &mut OhuaData) {
+    // FIXME: Delete me once ohua-dev/ohua-core#32 is fixed
     // need to pull the ops from the struct first due to borrowing
     let mut ops = vec![];
     std::mem::swap(&mut compiled_algo.graph.operators, &mut ops);
