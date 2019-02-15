@@ -226,10 +226,123 @@ fn generate_out_arcs_vec<'a>(
     arcs: &'a Vec<DirectArc>,
     ops: &Vec<Operator>,
 ) -> Vec<(&'a DirectArc, Ident)> {
-    get_out_arcs(&op, &arcs)
+    // grab all out arcs and generate identifiers for them
+    let all_out_arcs = get_out_arcs(&op, &arcs);
+    let mut out_arcs: Vec<(&i32, (&'a DirectArc, Ident))> = all_out_arcs
         .iter()
-        .map(|arc| (*arc, generate_out_arc_var(arc, ops)))
-        .collect()
+        .map(|arc| {
+            (
+                get_out_index_from_source(&arc.source),
+                (*arc, generate_out_arc_var(arc, ops)),
+            )
+        })
+        .collect();
+
+    // detect all output ports that serve more than one outgoing arc and bundle them,
+    // create speacial identifiers for them
+    let mut all_pairs = find_out_port_pairs(&arcs);
+    let pairs: Vec<Vec<&'a DirectArc>> = all_pairs
+        .drain(..)
+        .filter(|arcs| match arcs[0].source {
+            Local(ref a) => &a.operator == op,
+            _ => false,
+        })
+        .collect();
+    let mut pair_arcs: Vec<(&i32, (&'a DirectArc, Ident))> = pairs
+        .iter()
+        .map(|arcs| {
+            (
+                get_out_index_from_source(&arcs[0].source),
+                (arcs[0], generate_pair_arc_var(arcs[0])),
+            )
+        })
+        .collect();
+
+    // replace all output arcs that share a port with the duplicating out arc
+    for pair in pair_arcs.drain(..) {
+        out_arcs.retain(|arc| get_out_index_from_source(&(arc.1).0.source) != pair.0);
+        out_arcs.push(pair);
+    }
+    out_arcs.sort_unstable_by_key(|x| x.0);
+
+    let res = out_arcs.drain(..).unzip::<&i32, (&'a DirectArc, Ident), Vec<&i32>, Vec<(&'a DirectArc, Ident)>>().1;
+
+    res
+}
+
+/// Finds any output ports on an operator that serve multiple outgoing arcs and returns them,
+/// bundled together in separate vectors.
+fn find_out_port_pairs<'a>(arcs: &'a Vec<DirectArc>) -> Vec<Vec<&'a DirectArc>> {
+    let mut res = Vec::new();
+
+    // generate a list of all operators occuring in the list of direct arcs
+    let mut indices: Vec<i32> = arcs
+        .iter()
+        .filter_map(|a| match a.source {
+            ArcSource::Local(ref src) => Some(src.operator),
+            _ => None,
+        })
+        .collect();
+    indices.sort_unstable();
+    indices.dedup();
+
+    // inspect the out arcs of every operator separately, looking for out-arc pairs
+    for op in indices {
+        let mut relevant_arcs = get_out_arcs(&op, arcs);
+
+        relevant_arcs.sort_unstable_by_key(|arc| match arc.source {
+            ArcSource::Local(ref src) => src.index,
+            ref x => panic!("Unsupported operator type: {:?}", x),
+        });
+
+        let mut selected_arcs = Vec::new();
+        let mut current_idx: i32 = 0;
+
+        // group into vec
+        for arc in relevant_arcs.drain(..) {
+            match arc.source {
+                ArcSource::Local(ref src) => {
+                    if selected_arcs.len() != 0 {
+                        if src.index == current_idx {
+                            // we are still filling the same group
+                            selected_arcs.push(arc);
+
+                        } else {
+                            // start of a new group -> store away the old one
+                            if selected_arcs.len() == 1 {
+                                selected_arcs.clear();
+                            } else {
+                                res.push(selected_arcs);
+                                selected_arcs = Vec::new();
+                            }
+                            current_idx = src.index;
+                            selected_arcs.push(arc);
+                        }
+                    } else {
+                        selected_arcs.push(arc);
+                        current_idx = src.index;
+                    }
+                }
+                ref x => panic!("Unsupported operator type: {:?}", x),
+            }
+        }
+        if selected_arcs.len() > 1 {
+            res.push(selected_arcs);
+        }
+    }
+
+    res
+}
+
+/// Generate the variable name for a pair arc
+fn generate_pair_arc_var<'a>(arc: &'a DirectArc) -> Ident {
+    match arc.source {
+        ArcSource::Local(ref src) => Ident::new(
+            &format!("sf_{}_out_{}", src.operator, src.index),
+            Span::call_site(),
+        ),
+        ref x => panic!("Unsupported operator type: {:?}", x),
+    }
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
@@ -239,7 +352,7 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
 
     // separate normal arcs and dead arcs
     let (normal_arcs, dead_ends): (Vec<DirectArc>, Vec<DirectArc>) =
-        arcs.into_iter().partition(|arc| {
+        arcs.clone().into_iter().partition(|arc| {
             compiled
                 .graph
                 .operators
@@ -259,6 +372,20 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
         .iter()
         .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
 
+    let index_pairs = find_out_port_pairs(&arcs);
+    let pair_ins: Vec<Ident> = index_pairs
+        .iter()
+        .map(|pair| generate_pair_arc_var(pair[0]))
+        .collect();
+    let pair_args: Vec<Vec<Ident>> = index_pairs
+        .iter()
+        .map(|pair| {
+            pair.iter()
+                .map(|it| generate_out_arc_var(it, &(compiled.graph.operators)))
+                .collect()
+        })
+        .collect();
+
     let state_outs = compiled
         .graph
         .arcs
@@ -276,6 +403,7 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
         #(let #dead_outs = DeadEndArc::default();)*
         #(let (#state_outs, #state_ins) = std::sync::mpsc::channel();)*
+        #(let #pair_ins = DispatchQueue::new(vec![#(#pair_args,)*]);)*
     }
 }
 
@@ -610,6 +738,7 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
         use std::sync::mpsc::Receiver;
         use std::boxed::FnBox;
         use ohua_runtime::*;
+        use ohua_runtime::arcs::*;
 
         use ohua_runtime::lang::{send_once, Unit};
 
@@ -775,18 +904,18 @@ mod generate_recur {
 
     extern crate bit_set;
 
-    use ohua_types::*;
-    use lang::generate_recur;
     use self::bit_set::BitSet;
-    use proc_macro2::{TokenStream};
+    use lang::generate_recur;
+    use ohua_types::*;
+    use proc_macro2::TokenStream;
 
     type OpId = i32;
     type Arity = usize;
     type Index = i32;
 
-    const OHUA_NAMESPACE : [&str; 2] = ["ohua", "lang"];
-    const RECUR_NAMESPACE : [&str; 2] = OHUA_NAMESPACE;
-    const RECUR_NAME : &str = "recurFun";
+    const OHUA_NAMESPACE: [&str; 2] = ["ohua", "lang"];
+    const RECUR_NAMESPACE: [&str; 2] = OHUA_NAMESPACE;
+    const RECUR_NAME: &str = "recurFun";
 
     fn is_recur(op: &Operator) -> bool {
         let ty = &op.operatorType;
@@ -796,10 +925,12 @@ mod generate_recur {
     }
 
     fn determine_recursion_arity(op_id: OpId, arcs: &Arcs) -> Arity {
-        let mut x : Vec<Index> =
-            arcs.direct.iter()
+        let mut x: Vec<Index> = arcs
+            .direct
+            .iter()
             .map(|a| &a.target)
-            .filter(|t| t.operator == op_id).map(|t| t.index)
+            .filter(|t| t.operator == op_id)
+            .map(|t| t.index)
             .collect();
         x.dedup();
         x.len()
@@ -811,10 +942,10 @@ mod generate_recur {
         pub fn new() -> SimpleTracker {
             SimpleTracker(BitSet::new())
         }
-        pub fn tick(&mut self, i:usize) {
+        pub fn tick(&mut self, i: usize) {
             self.0.insert(i);
         }
-        pub fn ticked(& self) -> self::bit_set::Iter<u32> {
+        pub fn ticked(&self) -> self::bit_set::Iter<u32> {
             self.0.iter()
         }
     }
