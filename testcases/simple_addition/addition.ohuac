@@ -1,8 +1,0 @@
-ns some_ns;
-
-use sf hello (calc, world);
-
-fn main(arg: i32) -> i32 {
-    let res = calc(arg);
-    world(res)
-}

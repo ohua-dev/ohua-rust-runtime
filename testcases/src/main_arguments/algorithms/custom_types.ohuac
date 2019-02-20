@@ -1,0 +1,15 @@
+ns some_ns;
+
+use sf main_arguments::house::{move_house, move_in_one, move_in_one_more, evict_one, house_information};
+
+fn main(house: House, target_address: String, humans: Vec<Human>) -> House {
+    let house_moved = move_house(house, target_address);
+
+    let component = move_in_one(house_moved, humans);
+    let component2 = move_in_one_more(component);
+
+    house_information(component2);
+
+    evict_one(component2)
+}
+

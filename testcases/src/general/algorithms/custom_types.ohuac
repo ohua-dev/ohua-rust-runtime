@@ -1,0 +1,17 @@
+ns some_ns;
+
+use sf general::house::{move_house, move_in_one, move_in_one_more, evict_one, house_information, create_house, get_address, build_humans, printout};
+
+fn main() {
+    let house = create_house();
+    let target_address = get_address();
+    let humans = build_humans();
+    let house2 = move_house(house, target_address);
+    let bundle1 = move_in_one(house2, humans);
+    let bundle2 = move_in_one_more(bundle1);
+    let bundle3 = move_in_one_more(bundle2);
+
+    house_information(bundle3);
+
+    printout(evict_one(bundle3))
+}

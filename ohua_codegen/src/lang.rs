@@ -1,0 +1,242 @@
+use proc_macro2::{Ident, Span, TokenStream};
+
+//
+// The ctrl operator needs to be stateful but can not define its own state.
+// The state of the operator would have to capture the data retrieved from the
+// arcs of the vars. But what would be their type???
+// For a generic backend, we don't ever deal with types. We rely solely on the
+// type inference mechanisms of the target language.
+// As such, we can not write or even generate a function that creates this state.
+// THIS IS A GENERAL INSIGHT: state in operators (which are meant to be polymorph with
+// respect to the data in the graph) can never contain anything that is related to the
+// data in the graph!
+// As such, the only way to write such an operator is using tail recursion as shown below.
+//
+pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
+    assert!(num_args != 0);
+
+    let fn_name = Ident::new(&format!("ctrl_{}", num_args), Span::call_site());
+    let sfn_name = Ident::new(&format!("ctrl_sf_{}", num_args), Span::call_site());
+
+    let ref vars_in: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| {
+            Ident::new(
+                &format!("var_in_{}", arg_idx.to_string()),
+                Span::call_site(),
+            )
+        })
+        .collect();
+    let ref vars_out: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| {
+            Ident::new(
+                &format!("var_out_{}", arg_idx.to_string()),
+                Span::call_site(),
+            )
+        })
+        .collect();
+    let ref vars: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| Ident::new(&format!("var_{}", arg_idx.to_string()), Span::call_site()))
+        .collect();
+    let ref type_vars: Vec<Ident> = (0..num_args)
+        .map(|arg_idx| Ident::new(&format!("T{}", arg_idx.to_string()), Span::call_site()))
+        .collect();
+
+    // The following block is necessary until https://github.com/dtolnay/quote/issues/8 is closed (which will hopefully happen eventually)
+    let type_vars2 = type_vars;
+    let type_vars3 = type_vars;
+    let type_vars4 = type_vars;
+    let type_vars5 = type_vars;
+    let type_vars6 = type_vars;
+    let type_vars7 = type_vars;
+    let vars2 = vars;
+    let vars3 = vars;
+    let vars4 = vars;
+    let vars5 = vars;
+    let vars6 = vars;
+    let vars_in2 = vars_in;
+    let vars_in3 = vars_in;
+    let vars_in4 = vars_in;
+    let vars_in5 = vars_in;
+    let vars_in6 = vars_in;
+    let vars_out2 = vars_out;
+    let vars_out3 = vars_out;
+    let vars_out4 = vars_out;
+    let vars_out5 = vars_out;
+    let vars_out6 = vars_out;
+
+    quote! {
+        fn #fn_name<#(#type_vars:Clone + Send),*>(
+            ctrl_inp:&Receiver<(bool,isize)>,
+            #(#vars_in:&Receiver<#type_vars2>),* ,
+            #(#vars_out:&dyn ArcInput<#type_vars3>),*) -> Result<(), RunError> {
+          let (renew_next_time, count) = ctrl_inp.recv()?;
+          let (#(#vars , )*) = ( #(#vars_in2.recv()? , )* );
+          for _ in 0..count {
+              #(#vars_out2.dispatch(#vars2.clone())?;)*
+          };
+          #sfn_name(ctrl_inp,
+                    #(#vars_in3),* ,
+                    #(#vars_out3),* ,
+                    renew_next_time,
+                    (#(#vars3 , )*))
+        };
+
+        fn #sfn_name<#(#type_vars4:Clone + Send),*>(
+            ctrl_inp:&Receiver<(bool,isize)>,
+            #(#vars_in4:&Receiver<#type_vars5>),* ,
+            #(#vars_out4:&dyn ArcInput<#type_vars6>),* ,
+            renew: bool,
+            state_vars:(#(#type_vars7 , )*)) -> Result<(), RunError> {
+          let (renew_next_time, count) = ctrl_inp.recv()?;
+          let (#(#vars4,)*) = if renew {
+                          ( #(#vars_in5.recv()? , )* )
+                     } else {
+                         // reuse the captured vars
+                         state_vars
+                     };
+          for _ in 0..count {
+              #(#vars_out5.dispatch(#vars5.clone())?;)*
+          };
+          #sfn_name(ctrl_inp,
+                    #(#vars_in6),* ,
+                    #(#vars_out6),* ,
+                    renew_next_time,
+                    (#(#vars6 , )*))
+        };
+    }
+}
+
+// // Instead of making the code above more complex, I write it here again.
+// pub fn generate_ctrl_1_operator() -> TokenStream {
+//     quote!{
+//         fn ctrl_1<T1:Clone>(
+//             ctrl_inp:&Receiver<(bool,isize)>,
+//             var_in_1:&Receiver<T1>,
+//             var_out_1:&dyn ArcInput<T1>) {
+//           let (renew_next_time, count) = ctrl_inp.recv().unwrap();
+//           let var_1 = var_in_1.recv().unwrap();
+//           for _ in 0..count {
+//               var_out_1.dispatch(var_1.clone()).unwrap();
+//           };
+//           ctrl_sf_1(ctrl_inp,
+//                     var_in_1,
+//                     var_out_1 ,
+//                     renew_next_time,
+//                     var_1)
+//         };
+//
+//         fn ctrl_sf_1<T1:Clone>(
+//             ctrl_inp:&Receiver<(bool,isize)>,
+//             var_in_1:&Receiver<T1>,
+//             var_out_1:&dyn ArcInput<T1>,
+//             renew: bool,
+//             state_var: T1) {
+//           let (renew_next_time, count) = ctrl_inp.recv().unwrap();
+//           let var_1 = if renew {
+//                           var_in_1.recv().unwrap()
+//                      } else {
+//                          // reuse the captured var
+//                          state_var
+//                      };
+//           for _ in 0..count {
+//               var_out_1.dispatch(var_1.clone()).unwrap();
+//           };
+//           ctrl_sf_1(ctrl_inp,
+//                     var_in_1,
+//                     var_out_1,
+//                     renew_next_time,
+//                     var_1)
+//         };
+//     }
+// }
+
+pub fn generate_nth(num: &i32, len: &i32) -> TokenStream {
+    let fn_name = Ident::new(&format!("nth_{}_{}", num, len), Span::call_site());
+    let ref vars: Vec<Ident> = (0..*len)
+        .map(|var_idx| Ident::new(&format!("var_{}", var_idx.to_string()), Span::call_site()))
+        .collect();
+    let ref type_vars: Vec<Ident> = (0..*len)
+        .map(|arg_idx| Ident::new(&format!("T{}", arg_idx.to_string()), Span::call_site()))
+        .collect();
+    let type_vars2 = type_vars;
+    let type_var = Ident::new(&format!("T{}", num), Span::call_site());
+    let var = Ident::new(&format!("var_{}", num), Span::call_site());
+    quote! {
+        fn #fn_name< #(#type_vars),* >(t:(#(#type_vars2),*)) -> #type_var {
+            let (#(#vars),*) = t;
+            #var
+        };
+    }
+}
+
+// This does not work either because the compiler wants to have the type of the closure parameter!
+// pub fn generate_nth(num:i32) -> TokenStream {
+//     let fn_name = Ident::new(&format!("nth_{}", num), Span::call_site());
+//     let n = Literal::i32_unsuffixed(num);
+//     quote!{
+//         let #fn_name = |t| { t.#n };
+//     }
+// }
+
+pub mod generate_recur {
+
+    use proc_macro2::{Ident, Span, TokenStream};
+
+    type Len = usize;
+
+    fn std_ident(s: &str) -> Ident {
+        Ident::new(s, Span::call_site())
+    }
+
+    pub fn generate_fun_name(len: Len) -> String {
+        format!("recur_{}", len)
+    }
+
+    pub fn generate(len: Len) -> TokenStream {
+        let fn_name = std_ident(&generate_fun_name(len));
+        let ref initial_args: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("init_{}", idx.to_string())))
+            .collect();
+        let ref arg_types: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("T{}", idx.to_string())))
+            .collect();
+        let ref loop_args: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("loop_{}", idx.to_string())))
+            .collect();
+        let ref return_type = std_ident("R");
+
+        let return_type0 = return_type;
+        let return_type1 = return_type;
+        let return_type2 = return_type;
+
+        let arg_types0 = arg_types;
+        let arg_types1 = arg_types;
+        let arg_types2 = arg_types;
+
+        let loop_args0 = loop_args;
+
+        let initial_args0 = initial_args;
+
+        quote! {
+            fn #fn_name<#(#arg_types0 : Send),*, #return_type2 : Send>
+                (condition: &Receiver<bool>,
+                 result_arc: &Receiver<#return_type0>,
+                 #(#initial_args0 : #arg_types1),*,
+                 #(#loop_args0 : #arg_types2),*
+                 ctrl_arc: &dyn ArcInput<bool>,
+                 cont_arc: &dyn ArcInput<(#(#arg_types),*)>,
+                 finish_arc: &dyn ArcInput<#return_type1>,
+                ) {
+                    loop {
+                        out_arc.send(
+                            (true, (#(#initial_args.recv().unwrap()),*))
+                        );
+                        while (condition.recv().unwrap()) {
+                    out_arc.send((true, (#(#loop_args.recv().unwrap()),*)));
+                        }
+                        finish_arc.send(result_arc.recv());
+                    }
+                }
+        }
+    }
+}

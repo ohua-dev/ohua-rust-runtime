@@ -1,0 +1,8 @@
+ns some_ns;
+
+use sf main_arguments::mainclone::{concat, append_foo};
+
+fn main(arg: i32) -> i32 {
+    let res = concat(arg, arg);
+    append_foo(res)
+}

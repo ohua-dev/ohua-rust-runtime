@@ -1,13 +1,8 @@
-[package]
-name = "ohua_rust_runtime"
-version = "0.1.0"
-authors = ["Felix Wittwer <dev@felixwittwer.de>"]
+# Cargo.toml
+[workspace]
+members = [
+    "ohua_codegen",
+    "ohua_runtime",
+]
 
-[dependencies]
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = "1.0"
-
-tempdir = "0.3"
-syn = { version = "0.13", features = ["full", "extra-traits"] }
-quote = "0.5" # same version as in syn
+exclude = ["testcases/"]
