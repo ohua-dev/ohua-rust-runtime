@@ -12,6 +12,12 @@ use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::Expr;
 
+const OHUA_RUNTIME_NAMESPACE: [&str; 2] = ["ohua_runtime", "lang"];
+
+fn is_runtime_op(op: &Operator) -> bool {
+    op.operatorType.qbNamespace == OHUA_RUNTIME_NAMESPACE
+}
+
 fn get_op_id(val: &ArcSource) -> &i32 {
     match val {
         ArcSource::Env(e) => match e {
@@ -109,13 +115,7 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> String 
     format!("sf_{}_out_{}", op.to_string(), computed_idx.to_string())
 }
 
-fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
-    let out_idx = get_out_index_from_source(&(arc.source));
-    let src_op = get_op_id(&(arc.source));
-    let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
-
-    let in_port = generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index));
-
+fn make_out_arc_ident(out_port: &String, in_port: &Ident) -> Ident {
     /**
     This enforces the following invariant in Ohua/dataflow:
     An input port can only have one incoming arc. So it is enough to use the op-id and the input-port-id
@@ -131,6 +131,15 @@ fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
         &format!("{}__{}", out_port.to_string(), in_port.to_string()),
         Span::call_site(),
     )
+}
+
+fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
+    let out_idx = get_out_index_from_source(&(arc.source));
+    let src_op = get_op_id(&(arc.source));
+    let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
+
+    let in_port = generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index));
+    make_out_arc_ident(&out_port, &in_port)
 }
 
 fn generate_var_for_in_arc(op: &i32, idx: &i32) -> Ident {
@@ -756,7 +765,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
         .operators
         .iter()
         .filter(|op| {
-            op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            is_runtime_op(op)
                 && op.operatorType.qbName.as_str() == "ctrl"
         })
         .map(|op| {
@@ -777,7 +786,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
     compiled_algo.graph.operators = ops
         .drain(..)
         .map(|mut op| {
-            if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            if is_runtime_op(&op)
                 && op.operatorType.qbName.as_str() == "ctrl"
             {
                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
@@ -820,7 +829,7 @@ fn is_nth(op_id: &i32, ops: &Vec<Operator>) -> bool {
     let op = ops.iter().find(|op| &op.operatorId == op_id);
     match op {
         Some(o) => {
-            o.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            is_runtime_op(o)
                 && o.operatorType.qbName.as_str() == "nth"
         }
         None => false,
@@ -833,7 +842,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .operators
         .iter()
         .filter(|op| {
-            op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            is_runtime_op(op)
                 && op.operatorType.qbName.as_str() == "nth"
         })
         .map(|op| {
@@ -1004,14 +1013,7 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
     env_arc_ids.dedup();
 
     // find starting number for next operator
-    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().fold(0, |acc, op| {
-        if op.operatorId > acc {
-            op.operatorId
-        } else {
-            acc
-        }
-    }) + 1;
-
+    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().map(|o| o.operatorId).max().unwrap_or(0) + 1;
     for i in env_arc_ids {
         // add a new operator per environment arc
         compiled_algo.graph.operators.push(Operator {
@@ -1139,7 +1141,6 @@ mod tests {
                             index: out_idx,
                         }),
                     }],
-                    compound: vec![],
                     state: vec![],
                 },
                 return_arc: ArcIdentifier {

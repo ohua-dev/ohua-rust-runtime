@@ -36,8 +36,8 @@ pub struct DFGraph {
 #[derive(Deserialize, Debug)]
 pub struct Arcs {
     pub direct: Vec<DirectArc>,
-    pub compound: Vec<CompoundArc>, // FIXME to be removed!
     pub state: Vec<StateArc>,
+    pub dead: Vec<DeadArc>,
 }
 
 /// A single operator of the DFG. Represents a stateful function that is to be called.
@@ -71,30 +71,28 @@ pub enum NodeType {
     OperatorNode,
 }
 
-/// A simple Arc between two points in the graph.
 #[derive(Deserialize, Debug, Clone)]
-pub struct DirectArc {
-    pub target: ArcIdentifier,
-    pub source: ArcSource,
+pub struct Arc<T,S> {
+    pub target: T,
+    pub source: S,
 }
+
+pub type OpId = i32;
+pub type Index = i32;
+
+/// A simple Arc between two points in the graph.
+pub type DirectArc = Arc<ArcIdentifier, ArcSource>;
+/// The source is treated like usual, but the value is reused as state at the
+/// target.
+pub type StateArc = Arc<OpId, ArcSource>;
+/// An arc that leads no where and who's contents should be discarded.
+pub type DeadArc = Arc<(), ArcSource>;
 
 /// A local Arc endpoint, an operator.
 #[derive(Deserialize, Debug, Clone)]
 pub struct ArcIdentifier {
-    pub operator: i32,
-    pub index: i32,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct CompoundArc {
-    pub target: ArcIdentifier,
-    pub source: Vec<ArcSource>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct StateArc {
-    pub target: i32,
-    pub source: ArcSource,
+    pub operator: OpId,
+    pub index: Index,
 }
 
 /// Describes the type of an Arc source. This can either be an environment value _or_ a local value (another operator).
@@ -131,7 +129,7 @@ pub enum Envs {
         content: i32,
     },
     FunRefLit {
-        contents: (OperatorType, i32),
+        contents: (OperatorType, OpId),
     },
     // FIXME the above is a hack for now. it should be this:
     // FunRefLit { contents: OperatorType },
