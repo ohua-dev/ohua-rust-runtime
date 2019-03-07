@@ -1,5 +1,5 @@
 use ohua_types::{ArcIdentifier, ArcSource, DirectArc, OhuaData};
-use typedgen::get_out_arcs;
+// use typedgen::get_out_arcs;
 
 /// After severe issues with `ctrl` operators that have empty argument lists,
 /// this optimization pass removes any such operators, leaving behind (implicit)

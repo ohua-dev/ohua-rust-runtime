@@ -85,8 +85,10 @@ pub type DirectArc = Arc<ArcIdentifier, ArcSource>;
 /// The source is treated like usual, but the value is reused as state at the
 /// target.
 pub type StateArc = Arc<OpId, ArcSource>;
+// FIXME: this is utter nonsense -- the deserializer expects something different than we can provide (a `[]` in json)
+pub type DeadArcTarget = Vec<()>;
 /// An arc that leads no where and who's contents should be discarded.
-pub type DeadArc = Arc<(), ArcSource>;
+pub type DeadArc = Arc<DeadArcTarget, ArcIdentifier>;
 
 /// A local Arc endpoint, an operator.
 #[derive(Deserialize, Debug, Clone)]
@@ -129,7 +131,7 @@ pub enum Envs {
         content: i32,
     },
     FunRefLit {
-        contents: (OperatorType, OpId),
+        contents: (OperatorType, Option<OpId>),
     },
     // FIXME the above is a hack for now. it should be this:
     // FunRefLit { contents: OperatorType },

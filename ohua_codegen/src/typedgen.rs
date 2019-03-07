@@ -230,6 +230,7 @@ fn generate_in_arcs_vec(
         .collect()
 }
 
+// FIXME: Either include DeadArcs here or rewrite to Workaround arc
 fn generate_out_arcs_vec<'a>(
     op: &i32,
     arcs: &'a Vec<DirectArc>,
@@ -864,11 +865,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .filter(|arc| {
             let nth = is_nth(&arc.target.operator, &compiled_algo.graph.operators);
             if nth {
-                if arc.target.index < 2 {
-                    false
-                } else {
-                    true
-                }
+                arc.target.index >= 2
             } else {
                 true
             }
@@ -1142,6 +1139,7 @@ mod tests {
                         }),
                     }],
                     state: vec![],
+                    dead: vec![]
                 },
                 return_arc: ArcIdentifier {
                     operator: 1,
@@ -1167,7 +1165,7 @@ mod tests {
                 qbName: "some_other_sfn".to_string(),
             },
             NodeType::FunctionNode,
-            -1,
+            0,
         );
 
         let generated_imports =
@@ -1176,7 +1174,7 @@ mod tests {
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: Receiver ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: Receiver ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ohua_runtime :: arcs :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -1244,8 +1242,8 @@ mod tests {
                         },
                         source: ArcSource::Env(EnvRefLit { content: 0 }),
                     }],
-                    compound: vec![],
                     state: vec![],
+                    dead: vec![]
                 },
                 return_arc: ArcIdentifier {
                     operator: 1,
