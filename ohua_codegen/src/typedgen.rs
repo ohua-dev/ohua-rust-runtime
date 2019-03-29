@@ -215,7 +215,7 @@ fn generate_in_arcs_vec(
                 }
                 FunRefLit { contents: fn_ref } => {
                     // let f = syn::parse_str::<Path>(&fn_ref.0.function_name()).unwrap();
-                    let f = get_call_reference(&fn_ref.0);
+                    let f = get_call_reference(&fn_ref);
                     match *node_type {
                         NodeType::FunctionNode => quote! { #f },
                         NodeType::OperatorNode => quote! { send_once(#f) },
@@ -738,7 +738,7 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
         })
         .map(|arc| match arc.source {
             Env(e) => match e {
-                FunRefLit { contents: op } => op.0,
+                FunRefLit { contents: op } => op,
                 _ => panic!("Invariant broken!"),
             },
             _ => panic!("Invariant broken!"),
