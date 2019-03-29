@@ -36,8 +36,8 @@ pub struct DFGraph {
 #[derive(Deserialize, Debug)]
 pub struct Arcs {
     pub direct: Vec<DirectArc>,
-    pub compound: Vec<CompoundArc>,// FIXME to be removed!
     pub state: Vec<StateArc>,
+    pub dead: Vec<DeadArc>,
 }
 
 /// A single operator of the DFG. Represents a stateful function that is to be called.
@@ -71,30 +71,30 @@ pub enum NodeType {
     OperatorNode,
 }
 
-/// A simple Arc between two points in the graph.
 #[derive(Deserialize, Debug, Clone)]
-pub struct DirectArc {
-    pub target: ArcIdentifier,
-    pub source: ArcSource,
+pub struct Arc<T,S> {
+    pub target: T,
+    pub source: S,
 }
+
+pub type OpId = i32;
+pub type Index = i32;
+
+/// A simple Arc between two points in the graph.
+pub type DirectArc = Arc<ArcIdentifier, ArcSource>;
+/// The source is treated like usual, but the value is reused as state at the
+/// target.
+pub type StateArc = Arc<OpId, ArcSource>;
+// FIXME: this is utter nonsense -- the deserializer expects something different than we can provide (a `[]` in json)
+pub type DeadArcTarget = Vec<()>;
+/// An arc that leads no where and who's contents should be discarded.
+pub type DeadArc = Arc<DeadArcTarget, ArcIdentifier>;
 
 /// A local Arc endpoint, an operator.
 #[derive(Deserialize, Debug, Clone)]
 pub struct ArcIdentifier {
-    pub operator: i32,
-    pub index: i32,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct CompoundArc {
-    pub target: ArcIdentifier,
-    pub source: Vec<ArcSource>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct StateArc {
-    pub target: i32,
-    pub source: ArcSource,
+    pub operator: OpId,
+    pub index: Index,
 }
 
 /// Describes the type of an Arc source. This can either be an environment value _or_ a local value (another operator).
@@ -124,18 +124,19 @@ pub enum ArcSource {
 pub enum Envs {
     NumericLit {
         #[serde(rename(deserialize = "contents"))]
-        content: i32
+        content: i32,
     },
     EnvRefLit {
         #[serde(rename(deserialize = "contents"))]
-        content: i32
+        content: i32,
     },
-    FunRefLit { contents: (OperatorType,i32) },
+    FunRefLit {
+        contents: (OperatorType, Option<OpId>),
+    },
     // FIXME the above is a hack for now. it should be this:
     // FunRefLit { contents: OperatorType },
-    UnitLit {}
+    UnitLit {},
 }
-
 
 /// Represents a dependency to a stateful function.
 #[derive(Deserialize, Debug, Clone)]
@@ -213,7 +214,12 @@ impl fmt::Display for OperatorType {
             namesp += format!("String::from(\"{}\"), ", space).as_str();
         }
 
-        write!(f, "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\")}}", namesp = namesp, name = self.qbName)
+        write!(
+            f,
+            "OperatorType {{qbNamespace: vec![{namesp}], qbName: String::from(\"{name}\")}}",
+            namesp = namesp,
+            name = self.qbName
+        )
     }
 }
 
@@ -268,14 +274,13 @@ impl fmt::Display for ArcSource {
 impl fmt::Display for Envs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Envs::NumericLit{ content:i } => write!(f, "NumericLit({})", i),
-            Envs::EnvRefLit{ content:i } => write!(f, "EnvRefLit({})", i),
-            Envs::FunRefLit{ contents:s } => write!(f, "FunRefLit({})", s.0),
-            Envs::UnitLit{} => write!(f, "UnitLit()"),
+            Envs::NumericLit { content: i } => write!(f, "NumericLit({})", i),
+            Envs::EnvRefLit { content: i } => write!(f, "EnvRefLit({})", i),
+            Envs::FunRefLit { contents: s } => write!(f, "FunRefLit({})", s.0),
+            Envs::UnitLit {} => write!(f, "UnitLit()"),
         }
     }
 }
-
 
 impl fmt::Display for SfDependency {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

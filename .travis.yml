@@ -1,4 +1,3 @@
-
 # Only build the master branch.
 branches:
   only:
@@ -7,13 +6,11 @@ branches:
 language: rust
 
 rust:
-  # - stable
-  - beta
   - nightly
 
-matrix:
-  allow_failures:
-    - rust: nightly
+# matrix:
+#   allow_failures:
+#     - rust: nightly
 
 # Caching Haskell stuff so the next build will be fast too.
 cache:
@@ -41,11 +38,7 @@ before_install:
 
 # run the normal build with tests
 script:
-  - cd ohua_codegen/
-  - cargo build --verbose
+  - cargo build
   - cargo test
-  - cd ../ohua_runtime/
-  - cargo build --verbose
+  - cd testcases/
   - cargo test
-  - cd ../testcases/
-  - ./run_tests.sh

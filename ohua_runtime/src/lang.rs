@@ -1,4 +1,5 @@
-use super::{ArcInput, RunError};
+use crate::arcs::ArcInput;
+use crate::RunError;
 use std::any::Any;
 use std::iter::Iterator;
 use std::sync::mpsc::channel;

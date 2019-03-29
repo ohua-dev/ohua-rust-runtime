@@ -27,10 +27,9 @@ fn lambda_in_if() {
     assert!(x == 8);
 }
 
-// FIXME: Frozen until closure of ohua-dev/ohua-core#28
 #[test]
 fn envarcs_with_if() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#28")
+    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#28")
     // let inp = String::from("executed: ");
     //
     // #[ohua]
@@ -39,19 +38,17 @@ fn envarcs_with_if() {
     // assert!(result == "executed: yes");
 }
 
-// FIXME: Frozen until closure of ohua-dev/ohua-code#29
 #[test]
 fn if_in_if() {
-    unimplemented!("Generated `ctrl` Operator has too many out-arcs supplied as inputs")
-    // #[ohua]
-    // let result = conditionals::algorithms::ifinif();
-    //
-    // assert!(result == "executed: no");
+    #[ohua]
+    let result = conditionals::algorithms::ifinif();
+
+    assert!(result == "executed: no");
 }
 
 #[test]
 fn smap_in_if_no_passthrough() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#29")
     // #[ohua]
     // let res = conditionals::algorithms::smap_in_if_no_passthrough();
     //
@@ -60,7 +57,7 @@ fn smap_in_if_no_passthrough() {
 
 #[test]
 fn smap_in_if_passthrough() {
-    unimplemented!("Frozen until closure of ohua-dev/ohua-core#29")
+    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#29")
     // #[ohua]
     // let res = conditionals::algorithms::smap_in_if_passthrough();
     //

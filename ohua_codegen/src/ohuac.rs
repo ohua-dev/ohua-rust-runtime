@@ -45,7 +45,8 @@ pub fn generate_dfg(source: PathBuf, target_dir: PathBuf) -> OhuaProduction {
             source.to_str().unwrap(),
             "--output",
             dfg_file.to_str().unwrap(),
-        ]).output()
+        ])
+        .output()
     {
         Ok(out) => out,
         Err(e) => {
@@ -75,7 +76,8 @@ pub fn generate_dfg(source: PathBuf, target_dir: PathBuf) -> OhuaProduction {
             source.to_str().unwrap(),
             "--output",
             type_file.to_str().unwrap(),
-        ]).output()
+        ])
+        .output()
     {
         Ok(out) => out,
         Err(e) => {

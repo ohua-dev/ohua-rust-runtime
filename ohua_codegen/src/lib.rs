@@ -78,13 +78,14 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     // TODO
 
     // Phase 4: Run the codegen
-    print!("[Phase 4] Generating Code...");
+    println!("[Phase 4] Deserializing the ohuac file.");
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
-    println!("SERDE");
-    let mut ohua_data: OhuaData = serde_json::from_reader(dfg_file).unwrap();
-    println!("SERDE DONE");
+    let mut ohua_data: OhuaData = match serde_json::from_reader(dfg_file) {
+        Ok(data) => data,
+        Err(e) => panic!("{}", e),
+    };
+    println!("[Phase 4] Starting code generation");
     alter_ohua_ns_imports(&mut ohua_data);
-    // println!("{}", &ohua_data);
 
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
     let final_code = generate_code(&mut ohua_data, &algo_args);

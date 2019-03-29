@@ -1,32 +1,14 @@
 #![feature(fnbox)]
 use std::marker::Send;
-use std::sync::mpsc::{RecvError, SendError, Sender};
+use std::sync::mpsc::{RecvError, SendError};
 use std::thread;
 
 use std::boxed::FnBox;
 
+pub mod arcs;
 pub mod lang;
 
-#[derive(Default)]
-pub struct DeadEndArc {}
-
-pub trait ArcInput<T> {
-    fn dispatch(&self, t: T) -> Result<(), SendError<T>>;
-}
-
-impl<T> ArcInput<T> for Sender<T> {
-    fn dispatch(&self, t: T) -> Result<(), SendError<T>> {
-        self.send(t)
-    }
-}
-
-impl<T: Send> ArcInput<T> for DeadEndArc {
-    fn dispatch(&self, _t: T) -> Result<(), SendError<T>> {
-        // drop
-        Ok(())
-    }
-}
-
+/// Error type representing possible errors when sending or receiving data via arcs.
 pub enum RunError {
     SendFailed,
     RecvFailed,
@@ -44,6 +26,9 @@ impl From<RecvError> for RunError {
     }
 }
 
+/// Central function to execute an algorithm.
+///
+/// The algorithm is provided as a set of tasks, each of which is going to be executed in a separate thread.
 pub fn run_tasks(mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'static>>) -> () {
     let mut handles = Vec::with_capacity(tasks.len());
     for task in tasks.drain(..) {

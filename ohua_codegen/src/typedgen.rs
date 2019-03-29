@@ -12,6 +12,12 @@ use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::Expr;
 
+const OHUA_RUNTIME_NAMESPACE: [&str; 2] = ["ohua_runtime", "lang"];
+
+fn is_runtime_op(op: &Operator) -> bool {
+    op.operatorType.qbNamespace == OHUA_RUNTIME_NAMESPACE
+}
+
 fn get_op_id(val: &ArcSource) -> &i32 {
     match val {
         ArcSource::Env(e) => match e {
@@ -109,13 +115,7 @@ fn generate_var_for_out_arc(op: &i32, idx: &i32, ops: &Vec<Operator>) -> String 
     format!("sf_{}_out_{}", op.to_string(), computed_idx.to_string())
 }
 
-fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
-    let out_idx = get_out_index_from_source(&(arc.source));
-    let src_op = get_op_id(&(arc.source));
-    let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
-
-    let in_port = generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index));
-
+fn make_out_arc_ident(out_port: &String, in_port: &Ident) -> Ident {
     /**
     This enforces the following invariant in Ohua/dataflow:
     An input port can only have one incoming arc. So it is enough to use the op-id and the input-port-id
@@ -131,6 +131,15 @@ fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
         &format!("{}__{}", out_port.to_string(), in_port.to_string()),
         Span::call_site(),
     )
+}
+
+fn generate_out_arc_var(arc: &DirectArc, ops: &Vec<Operator>) -> Ident {
+    let out_idx = get_out_index_from_source(&(arc.source));
+    let src_op = get_op_id(&(arc.source));
+    let out_port = generate_var_for_out_arc(src_op, out_idx, &ops);
+
+    let in_port = generate_var_for_in_arc(&(arc.target.operator), &(arc.target.index));
+    make_out_arc_ident(&out_port, &in_port)
 }
 
 fn generate_var_for_in_arc(op: &i32, idx: &i32) -> Ident {
@@ -221,15 +230,131 @@ fn generate_in_arcs_vec(
         .collect()
 }
 
+// FIXME: Either include DeadArcs here or rewrite to Workaround arc
 fn generate_out_arcs_vec<'a>(
     op: &i32,
     arcs: &'a Vec<DirectArc>,
     ops: &Vec<Operator>,
 ) -> Vec<(&'a DirectArc, Ident)> {
-    get_out_arcs(&op, &arcs)
+    // grab all out arcs and generate identifiers for them
+    let all_out_arcs = get_out_arcs(&op, &arcs);
+    let mut out_arcs: Vec<(&i32, (&'a DirectArc, Ident))> = all_out_arcs
         .iter()
-        .map(|arc| (*arc, generate_out_arc_var(arc, ops)))
-        .collect()
+        .map(|arc| {
+            (
+                get_out_index_from_source(&arc.source),
+                (*arc, generate_out_arc_var(arc, ops)),
+            )
+        })
+        .collect();
+
+    // detect all output ports that serve more than one outgoing arc and bundle them,
+    // create speacial identifiers for them
+    let mut all_pairs = find_out_port_pairs(&arcs);
+    let pairs: Vec<Vec<&'a DirectArc>> = all_pairs
+        .drain(..)
+        .filter(|arcs| match arcs[0].source {
+            Local(ref a) => &a.operator == op,
+            _ => false,
+        })
+        .collect();
+    let mut pair_arcs: Vec<(&i32, (&'a DirectArc, Ident))> = pairs
+        .iter()
+        .map(|arcs| {
+            (
+                get_out_index_from_source(&arcs[0].source),
+                (arcs[0], generate_pair_arc_var(arcs[0])),
+            )
+        })
+        .collect();
+
+    // replace all output arcs that share a port with the duplicating out arc
+    for pair in pair_arcs.drain(..) {
+        out_arcs.retain(|arc| get_out_index_from_source(&(arc.1).0.source) != pair.0);
+        out_arcs.push(pair);
+    }
+    out_arcs.sort_unstable_by_key(|x| x.0);
+
+    let res = out_arcs
+        .drain(..)
+        .unzip::<&i32, (&'a DirectArc, Ident), Vec<&i32>, Vec<(&'a DirectArc, Ident)>>()
+        .1;
+
+    res
+}
+
+/// Finds any output ports on an operator that serve multiple outgoing arcs and returns them,
+/// bundled together in separate vectors.
+fn find_out_port_pairs<'a>(arcs: &'a Vec<DirectArc>) -> Vec<Vec<&'a DirectArc>> {
+    let mut res = Vec::new();
+
+    // generate a list of all operators occuring in the list of direct arcs
+    let mut indices: Vec<i32> = arcs
+        .iter()
+        .filter_map(|a| match a.source {
+            ArcSource::Local(ref src) => Some(src.operator),
+            _ => None,
+        })
+        .collect();
+    indices.sort_unstable();
+    indices.dedup();
+
+    // inspect the out arcs of every operator separately, looking for out-arc pairs
+    for op in indices {
+        let mut relevant_arcs = get_out_arcs(&op, arcs);
+
+        relevant_arcs.sort_unstable_by_key(|arc| match arc.source {
+            ArcSource::Local(ref src) => src.index,
+            ref x => panic!("Unsupported operator type: {:?}", x),
+        });
+
+        let mut selected_arcs = Vec::new();
+        let mut current_idx: i32 = 0;
+
+        // group into vec
+        for arc in relevant_arcs.drain(..) {
+            match arc.source {
+                ArcSource::Local(ref src) => {
+                    if selected_arcs.len() != 0 {
+                        if src.index == current_idx {
+                            // we are still filling the same group
+                            selected_arcs.push(arc);
+                        } else {
+                            // start of a new group -> store away the old one
+                            if selected_arcs.len() == 1 {
+                                selected_arcs.clear();
+                            } else {
+                                res.push(selected_arcs);
+                                selected_arcs = Vec::new();
+                            }
+                            current_idx = src.index;
+                            selected_arcs.push(arc);
+                        }
+                    } else {
+                        selected_arcs.push(arc);
+                        current_idx = src.index;
+                    }
+                }
+                ref x => panic!("Unsupported operator type: {:?}", x),
+            }
+        }
+        if selected_arcs.len() > 1 {
+            res.push(selected_arcs);
+        }
+    }
+
+    res
+}
+
+/// Generate the variable name for a pair arc
+fn generate_pair_arc_var<'a>(arc: &'a DirectArc) -> Ident {
+    match arc.source {
+        ArcSource::Local(ref src) => Ident::new(
+            &format!("sf_{}_out_{}", src.operator, src.index),
+            Span::call_site(),
+        ),
+        ref x => panic!("Unsupported operator type: {:?}", x),
+    }
 }
 
 pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
@@ -239,7 +364,7 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
 
     // separate normal arcs and dead arcs
     let (normal_arcs, dead_ends): (Vec<DirectArc>, Vec<DirectArc>) =
-        arcs.into_iter().partition(|arc| {
+        arcs.clone().into_iter().partition(|arc| {
             compiled
                 .graph
                 .operators
@@ -259,6 +384,20 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
         .iter()
         .map(|arc| generate_out_arc_var(&arc, &(compiled.graph.operators)));
 
+    let index_pairs = find_out_port_pairs(&arcs);
+    let pair_ins: Vec<Ident> = index_pairs
+        .iter()
+        .map(|pair| generate_pair_arc_var(pair[0]))
+        .collect();
+    let pair_args: Vec<Vec<Ident>> = index_pairs
+        .iter()
+        .map(|pair| {
+            pair.iter()
+                .map(|it| generate_out_arc_var(it, &(compiled.graph.operators)))
+                .collect()
+        })
+        .collect();
+
     let state_outs = compiled
         .graph
         .arcs
@@ -276,6 +415,7 @@ pub fn generate_arcs(compiled: &OhuaData) -> TokenStream {
         #(let (#outs, #ins) = std::sync::mpsc::channel();)*
         #(let #dead_outs = DeadEndArc::default();)*
         #(let (#state_outs, #state_ins) = std::sync::mpsc::channel();)*
+        #(let #pair_ins = DispatchQueue::new(vec![#(#pair_args,)*]);)*
     }
 }
 
@@ -610,6 +750,7 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
         use std::sync::mpsc::Receiver;
         use std::boxed::FnBox;
         use ohua_runtime::*;
+        use ohua_runtime::arcs::*;
 
         use ohua_runtime::lang::{send_once, Unit};
 
@@ -625,7 +766,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
         .operators
         .iter()
         .filter(|op| {
-            op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            is_runtime_op(op)
                 && op.operatorType.qbName.as_str() == "ctrl"
         })
         .map(|op| {
@@ -646,7 +787,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
     compiled_algo.graph.operators = ops
         .drain(..)
         .map(|mut op| {
-            if op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            if is_runtime_op(&op)
                 && op.operatorType.qbName.as_str() == "ctrl"
             {
                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
@@ -689,7 +830,7 @@ fn is_nth(op_id: &i32, ops: &Vec<Operator>) -> bool {
     let op = ops.iter().find(|op| &op.operatorId == op_id);
     match op {
         Some(o) => {
-            o.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            is_runtime_op(o)
                 && o.operatorType.qbName.as_str() == "nth"
         }
         None => false,
@@ -702,7 +843,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .operators
         .iter()
         .filter(|op| {
-            op.operatorType.qbNamespace == vec!["ohua_runtime", "lang"]
+            is_runtime_op(op)
                 && op.operatorType.qbName.as_str() == "nth"
         })
         .map(|op| {
@@ -724,11 +865,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .filter(|arc| {
             let nth = is_nth(&arc.target.operator, &compiled_algo.graph.operators);
             if nth {
-                if arc.target.index < 2 {
-                    false
-                } else {
-                    true
-                }
+                arc.target.index >= 2
             } else {
                 true
             }
@@ -775,10 +912,10 @@ mod generate_recur {
 
     extern crate bit_set;
 
-    use ohua_types::*;
-    use lang::generate_recur;
     use self::bit_set::BitSet;
-    use proc_macro2::{TokenStream};
+    use lang::generate_recur;
+    use ohua_types::*;
+    use proc_macro2::TokenStream;
 
     type OpId = i32;
     type Arity = usize;
@@ -796,10 +933,12 @@ mod generate_recur {
     }
 
     fn determine_recursion_arity(op_id: OpId, arcs: &Arcs) -> Arity {
-        let mut x : Vec<Index> =
-            arcs.direct.iter()
+        let mut x: Vec<Index> = arcs
+            .direct
+            .iter()
             .map(|a| &a.target)
-            .filter(|t| t.operator == op_id).map(|t| t.index)
+            .filter(|t| t.operator == op_id)
+            .map(|t| t.index)
             .collect();
         x.dedup();
         (x.len() - 2) / 2
@@ -811,10 +950,10 @@ mod generate_recur {
         pub fn new() -> SimpleTracker {
             SimpleTracker(BitSet::new())
         }
-        pub fn tick(&mut self, i:usize) {
+        pub fn tick(&mut self, i: usize) {
             self.0.insert(i);
         }
-        pub fn ticked(& self) -> self::bit_set::Iter<u32> {
+        pub fn ticked(&self) -> self::bit_set::Iter<u32> {
             self.0.iter()
         }
     }
@@ -871,14 +1010,7 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
     env_arc_ids.dedup();
 
     // find starting number for next operator
-    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().fold(0, |acc, op| {
-        if op.operatorId > acc {
-            op.operatorId
-        } else {
-            acc
-        }
-    }) + 1;
-
+    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().map(|o| o.operatorId).max().unwrap_or(0) + 1;
     for i in env_arc_ids {
         // add a new operator per environment arc
         compiled_algo.graph.operators.push(Operator {
@@ -1007,8 +1139,8 @@ mod tests {
                             index: out_idx,
                         }),
                     }],
-                    compound: vec![],
                     state: vec![],
+                    dead: vec![]
                 },
                 return_arc: ArcIdentifier {
                     operator: 1,
@@ -1034,7 +1166,7 @@ mod tests {
                 qbName: "some_other_sfn".to_string(),
             },
             NodeType::FunctionNode,
-            -1,
+            0,
         );
 
         let generated_imports =
@@ -1043,7 +1175,7 @@ mod tests {
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: Receiver ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: Receiver ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ohua_runtime :: arcs :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -1111,8 +1243,8 @@ mod tests {
                         },
                         source: ArcSource::Env(EnvRefLit { content: 0 }),
                     }],
-                    compound: vec![],
                     state: vec![],
+                    dead: vec![]
                 },
                 return_arc: ArcIdentifier {
                     operator: 1,

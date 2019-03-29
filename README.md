@@ -1,3 +1,5 @@
+![](https://raw.githubusercontent.com/ohua-dev/ohua/master/logos/fileIcons/iconFull/rust/export_wide_lang_transparent.png "Ohua for Rust")
+
 # ohua-rust-runtime
 
 This is a Rust-based implementation of the Ohua-Runtime.
@@ -24,3 +26,5 @@ rustup run nightly cargo run
 ## License
 
 This project is licensed under the Eclipse Public License version 1.0. For further information please refer to the `LICENSE` file.
+
+The [Rust Logo](https://github.com/rust-lang-nursery/rust-artwork) is trademark of the Rust programming language.

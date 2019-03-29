@@ -184,7 +184,7 @@ pub mod generate_recur {
 
     type Len = usize;
 
-    fn std_ident(s:&str) -> Ident {
+    fn std_ident(s: &str) -> Ident {
         Ident::new(s, Span::call_site())
     }
 
@@ -194,11 +194,15 @@ pub mod generate_recur {
 
     pub fn generate(len: Len) -> TokenStream {
         let fn_name = std_ident(&generate_fun_name(len));
-        let ref initial_args : Vec<Ident> =
-            (0..len).map(|idx| std_ident(&format!("init_{}", idx.to_string()))).collect() ;
-        let ref arg_types : Vec<Ident> = (0..len).map(|idx| std_ident(&format!("T{}", idx.to_string()))).collect();
-        let ref loop_args : Vec<Ident> =
-        (0..len).map(|idx| std_ident(&format!("loop_{}", idx.to_string()))).collect() ;
+        let ref initial_args: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("init_{}", idx.to_string())))
+            .collect();
+        let ref arg_types: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("T{}", idx.to_string())))
+            .collect();
+        let ref loop_args: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("loop_{}", idx.to_string())))
+            .collect();
         let ref return_type = std_ident("R");
 
         let return_type0 = return_type;
