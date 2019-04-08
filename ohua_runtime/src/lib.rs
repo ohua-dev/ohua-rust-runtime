@@ -9,6 +9,7 @@ pub mod arcs;
 pub mod lang;
 
 /// Error type representing possible errors when sending or receiving data via arcs.
+#[derive(Debug)]
 pub enum RunError {
     SendFailed,
     RecvFailed,

@@ -131,7 +131,7 @@ pub enum Envs {
         content: i32,
     },
     FunRefLit {
-        contents: (OperatorType, Option<OpId>),
+        contents: OperatorType
     },
     // FIXME the above is a hack for now. it should be this:
     // FunRefLit { contents: OperatorType },
@@ -276,7 +276,7 @@ impl fmt::Display for Envs {
         match self {
             Envs::NumericLit { content: i } => write!(f, "NumericLit({})", i),
             Envs::EnvRefLit { content: i } => write!(f, "EnvRefLit({})", i),
-            Envs::FunRefLit { contents: s } => write!(f, "FunRefLit({})", s.0),
+            Envs::FunRefLit { contents: s } => write!(f, "FunRefLit({})", s),
             Envs::UnitLit {} => write!(f, "UnitLit()"),
         }
     }

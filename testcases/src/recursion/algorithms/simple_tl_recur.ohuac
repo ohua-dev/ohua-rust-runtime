@@ -1,0 +1,16 @@
+ns simple_tl_recur;
+
+use sf recursion::sfs::{lt, plus};
+
+fn go (n:i32) -> i32 {
+   let next = plus(n,3);
+   if (lt(n, 10)) {
+     go(next)
+   } else {
+     n
+   }
+}
+
+fn main() -> i32 {
+   ohua::lang::id(go(0))
+}

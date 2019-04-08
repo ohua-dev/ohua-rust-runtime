@@ -40,6 +40,8 @@ pub fn generate_dfg(source: PathBuf, target_dir: PathBuf) -> OhuaProduction {
     let dfg_output = match Command::new("ohuac")
         .args(&[
             "build",
+            "-f",
+            "tail-recursion",
             source.to_str().unwrap(),
             "--output",
             dfg_file.to_str().unwrap(),

@@ -221,22 +221,25 @@ pub mod generate_recur {
             fn #fn_name<#(#arg_types0 : Send),*, #return_type2 : Send>
                 (condition: &Receiver<bool>,
                  result_arc: &Receiver<#return_type0>,
-                 #(#initial_args0 : #arg_types1),*,
-                 #(#loop_args0 : #arg_types2),*
-                 ctrl_arc: &dyn ArcInput<bool>,
+                 #(#initial_args0 : &Receiver<#arg_types1>),*,
+                 #(#loop_args0 : &Receiver<#arg_types2>),*,
+                 ctrl_arc: &dyn ArcInput<(bool, isize)>,
                  cont_arc: &dyn ArcInput<(#(#arg_types),*)>,
                  finish_arc: &dyn ArcInput<#return_type1>,
-                ) {
-                    loop {
-                        out_arc.send(
-                            (true, (#(#initial_args.recv().unwrap()),*))
-                        );
-                        while (condition.recv().unwrap()) {
-                    out_arc.send((true, (#(#loop_args.recv().unwrap()),*)));
-                        }
-                        finish_arc.send(result_arc.recv());
-                    }
+                ) -> Result<(), RunError>
+            {
+                ctrl_arc.dispatch((true, 1));
+                cont_arc.dispatch(
+                    (#(#initial_args.recv()?),*)
+                );
+                while (condition.recv()?) {
+                    ctrl_arc.dispatch((true, 1));
+                    cont_arc.dispatch((#(#loop_args.recv()?),*));
                 }
+                ctrl_arc.dispatch((false, 0));
+                finish_arc.dispatch(result_arc.recv()?);
+                Ok(())
+            }
         }
     }
 }

@@ -215,7 +215,7 @@ fn generate_in_arcs_vec(
                 }
                 FunRefLit { contents: fn_ref } => {
                     // let f = syn::parse_str::<Path>(&fn_ref.0.function_name()).unwrap();
-                    let f = get_call_reference(&fn_ref.0);
+                    let f = get_call_reference(&fn_ref);
                     match *node_type {
                         NodeType::FunctionNode => quote! { #f },
                         NodeType::OperatorNode => quote! { send_once(#f) },
@@ -432,8 +432,9 @@ fn get_call_reference(op_type: &OperatorType) -> Ident {
 // interfaces with a scheduler. Let's see if I can get rid of this and accomplish the same just
 // via the arcs.
 fn generate_operator_code(op_name: Ident, call_args: Vec<TokenStream>) -> TokenStream {
-    if op_name.to_string().starts_with("lang/ctrl") {
-        quote! { #op_name(#(&#call_args),*)?; }
+    let name_str = op_name.to_string();
+    if name_str.starts_with("ctrl_") || name_str.starts_with("recur_") {
+        quote! { #op_name(#(&#call_args),*)?; Ok(()) }
     } else {
         quote! {
             loop{
@@ -738,7 +739,7 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
         })
         .map(|arc| match arc.source {
             Env(e) => match e {
-                FunRefLit { contents: op } => op.0,
+                FunRefLit { contents: op } => op,
                 _ => panic!("Invariant broken!"),
             },
             _ => panic!("Invariant broken!"),
@@ -765,10 +766,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
         .graph
         .operators
         .iter()
-        .filter(|op| {
-            is_runtime_op(op)
-                && op.operatorType.qbName.as_str() == "ctrl"
-        })
+        .filter(|op| is_runtime_op(op) && op.operatorType.qbName.as_str() == "ctrl")
         .map(|op| {
             let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
             num_args - 1
@@ -787,9 +785,7 @@ fn generate_ctrls(compiled_algo: &mut OhuaData) -> TokenStream {
     compiled_algo.graph.operators = ops
         .drain(..)
         .map(|mut op| {
-            if is_runtime_op(&op)
-                && op.operatorType.qbName.as_str() == "ctrl"
-            {
+            if is_runtime_op(&op) && op.operatorType.qbName.as_str() == "ctrl" {
                 let num_args = get_num_inputs(&op.operatorId, &compiled_algo.graph.arcs.direct);
                 op.operatorType.qbNamespace = vec![];
                 op.operatorType.qbName = format!("ctrl_{}", num_args - 1);
@@ -829,10 +825,7 @@ fn find_nth_info(op_id: &i32, direct_arcs: &Vec<DirectArc>) -> (i32, i32) {
 fn is_nth(op_id: &i32, ops: &Vec<Operator>) -> bool {
     let op = ops.iter().find(|op| &op.operatorId == op_id);
     match op {
-        Some(o) => {
-            is_runtime_op(o)
-                && o.operatorType.qbName.as_str() == "nth"
-        }
+        Some(o) => is_runtime_op(o) && o.operatorType.qbName.as_str() == "nth",
         None => false,
     }
 }
@@ -842,10 +835,7 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .graph
         .operators
         .iter()
-        .filter(|op| {
-            is_runtime_op(op)
-                && op.operatorType.qbName.as_str() == "nth"
-        })
+        .filter(|op| is_runtime_op(op) && op.operatorType.qbName.as_str() == "nth")
         .map(|op| {
             let (idx, total) = find_nth_info(&op.operatorId, &compiled_algo.graph.arcs.direct);
             (op.operatorId, idx, total)
@@ -921,7 +911,7 @@ mod generate_recur {
     type Arity = usize;
     type Index = i32;
 
-    const OHUA_NAMESPACE: [&str; 2] = ["ohua", "lang"];
+    const OHUA_NAMESPACE: [&str; 2] = ["ohua_runtime", "lang"];
     const RECUR_NAMESPACE: [&str; 2] = OHUA_NAMESPACE;
     const RECUR_NAME: &str = "recurFun";
 
@@ -941,7 +931,7 @@ mod generate_recur {
             .map(|t| t.index)
             .collect();
         x.dedup();
-        x.len()
+        (x.len() - 2) / 2
     }
 
     struct SimpleTracker(BitSet);
@@ -1010,7 +1000,14 @@ fn handle_environment_arcs(compiled_algo: &mut OhuaData) {
     env_arc_ids.dedup();
 
     // find starting number for next operator
-    let new_op_id_base: i32 = compiled_algo.graph.operators.iter().map(|o| o.operatorId).max().unwrap_or(0) + 1;
+    let new_op_id_base: i32 = compiled_algo
+        .graph
+        .operators
+        .iter()
+        .map(|o| o.operatorId)
+        .max()
+        .unwrap_or(0)
+        + 1;
     for i in env_arc_ids {
         // add a new operator per environment arc
         compiled_algo.graph.operators.push(Operator {
@@ -1058,6 +1055,7 @@ pub fn generate_code(
     handle_environment_arcs(compiled_algo);
     let ctrl_code = generate_ctrls(compiled_algo);
     let nth_code = generate_nths(compiled_algo);
+    //print!("{:?}", compiled_algo.graph.operators);
     let recur_code = generate_recur::generate(compiled_algo);
     // handle_environment_arcs(compiled_algo);
     let header_code = generate_imports(
@@ -1139,7 +1137,7 @@ mod tests {
                         }),
                     }],
                     state: vec![],
-                    dead: vec![]
+                    dead: vec![],
                 },
                 return_arc: ArcIdentifier {
                     operator: 1,
@@ -1243,7 +1241,7 @@ mod tests {
                         source: ArcSource::Env(EnvRefLit { content: 0 }),
                     }],
                     state: vec![],
-                    dead: vec![]
+                    dead: vec![],
                 },
                 return_arc: ArcIdentifier {
                     operator: 1,
