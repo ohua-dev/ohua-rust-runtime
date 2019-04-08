@@ -61,11 +61,10 @@ fn smap_with_envarc_in_loop() {
 
 #[test]
 fn smap_independent_fns_test() {
-    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#30");
-    // #[ohua]
-    // let x = smap::algorithms::independent_fns();
+    #[ohua]
+    let x = smap::algorithms::independent_fns();
 
-    // assert!(x == vec![4, 4, 4, 4, 4, 4, 4]);
+    assert!(x == vec![4, 4, 4, 4, 4, 4, 4]);
 }
 
 #[test]

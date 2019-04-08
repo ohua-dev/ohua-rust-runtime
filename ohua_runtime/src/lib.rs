@@ -40,7 +40,7 @@ pub fn run_tasks(mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'st
 
     for h in handles {
         if let Err(_) = h.join() {
-            println!("[Error] A worker thread of an ohua algorithm has panicked!");
+            eprintln!("[Error] A worker thread of an ohua algorithm has panicked!");
         }
     }
 }
