@@ -1,0 +1,12 @@
+ns some_ns;
+
+use sf io_stuff::printout;
+use sf crate::complete_string;
+
+fn main(input: Vec<String>) -> Vec<String> {
+    for i in input {
+        let s = complete_string(i);
+        printout(s);
+        s
+    }
+}

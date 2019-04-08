@@ -5,4 +5,4 @@ members = [
     "ohua_runtime",
 ]
 
-exclude = ["testcases/"]
+exclude = ["testcases/", "example/"]

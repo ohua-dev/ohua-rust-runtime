@@ -1,0 +1,9 @@
+[package]
+name = "toy-example"
+version = "0.1.0"
+authors = ["Felix Wittwer <dev@felixwittwer.de>"]
+edition = "2018"
+
+[dependencies]
+ohua_codegen = { path = "../ohua_codegen" }
+ohua_runtime = { path = "../ohua_runtime" }
