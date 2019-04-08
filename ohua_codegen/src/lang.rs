@@ -223,20 +223,20 @@ pub mod generate_recur {
                  result_arc: &Receiver<#return_type0>,
                  #(#initial_args0 : &Receiver<#arg_types1>),*,
                  #(#loop_args0 : &Receiver<#arg_types2>),*,
-                 ctrl_arc: &dyn ArcInput<bool>,
+                 ctrl_arc: &dyn ArcInput<(bool, isize)>,
                  cont_arc: &dyn ArcInput<(#(#arg_types),*)>,
                  finish_arc: &dyn ArcInput<#return_type1>,
                 ) -> Result<(), RunError>
             {
-                ctrl_arc.dispatch(true);
+                ctrl_arc.dispatch((true, 1));
                 cont_arc.dispatch(
                     (#(#initial_args.recv()?),*)
                 );
                 while (condition.recv()?) {
-                    ctrl_arc.dispatch(true);
+                    ctrl_arc.dispatch((true, 1));
                     cont_arc.dispatch((#(#loop_args.recv()?),*));
                 }
-                ctrl_arc.dispatch(false);
+                ctrl_arc.dispatch((false, 0));
                 finish_arc.dispatch(result_arc.recv()?);
                 Ok(())
             }
