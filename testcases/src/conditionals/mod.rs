@@ -29,13 +29,12 @@ fn lambda_in_if() {
 
 #[test]
 fn envarcs_with_if() {
-    unimplemented!("FIXME: Frozen until closure of ohua-dev/ohua-core#28")
-    // let inp = String::from("executed: ");
-    //
-    // #[ohua]
-    // let result = conditionals::algorithms::if_envarcs(true, inp);
-    //
-    // assert!(result == "executed: yes");
+    let inp = String::from("executed: ");
+
+    #[ohua]
+    let result = conditionals::algorithms::if_envarcs(true, inp);
+
+    assert!(result == "executed: yes");
 }
 
 #[test]
