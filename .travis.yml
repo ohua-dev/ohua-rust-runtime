@@ -42,3 +42,18 @@ script:
   - cargo test
   - cd testcases/
   - cargo test
+
+before_deploy:
+  - mkdir deploy
+  - tar -cf deploy/quickstart-$TRAVIS_OS_NAME.tar.gz `stack exec -- which ohuac` example/*
+  - zip deploy/quickstart-$TRAVIS_OS_NAME.zip `stack exec -- which ohuac` example/*
+deploy:
+  provider: releases
+  # not entirely sure this is needed, but to be on the safe side ...
+  skip_cleanup: true
+  file_glob: true
+  file:
+    - deploy/*
+  on:
+    repo: ohua-dev/ohuac
+    tags: true
