@@ -62,6 +62,7 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
      */
 
     // Phase 1: Run `ohuac` (there are no optimizations for the moment)
+    #[cfg(feature = "debug")]
     println!("[Phase 1] Starting `ohuac`");
     let ohuac_file = locate_ohuac_file(algo_name)
         .expect("The ohuac file could not be found at the requested place.");
@@ -78,20 +79,24 @@ pub fn ohua(args: TokenStream, input: TokenStream) -> TokenStream {
     // TODO
 
     // Phase 4: Run the codegen
+    #[cfg(feature = "debug")]
     println!("[Phase 4] Deserializing the ohuac file.");
     let dfg_file = File::open(&processed_algo.ohuao).unwrap();
     let mut ohua_data: OhuaData = match serde_json::from_reader(dfg_file) {
         Ok(data) => data,
         Err(e) => panic!("{}", e),
     };
+    #[cfg(feature = "debug")]
     println!("[Phase 4] Starting code generation");
     alter_ohua_ns_imports(&mut ohua_data);
 
     // all parsed code parts are unwrapped here, errors should not occur, as we've generated this
     let final_code = generate_code(&mut ohua_data, &algo_args);
+    #[cfg(feature = "debug")]
     println!(" Done!");
 
-    println!("{}", final_code.clone().to_string().replace(";", ";\n"));
+    #[cfg(feature = "debug")]
+    println!("{}", final_code);
     // Hand the output tokens back to the compil)er
     if let Some(mut local) = assignment {
         local.init = Some((syn::token::Eq::default(), syn::parse2(final_code).unwrap()));
@@ -119,6 +124,7 @@ fn locate_ohuac_file(path: syn::ExprPath) -> Option<PathBuf> {
     // We always look *inside* the src dir
     ohuac_path.push("src");
 
+    #[cfg(feature = "debug")]
     println!("Current dir: {:?}", ohuac_path);
 
     for p in lookup_path.drain(..) {
@@ -127,12 +133,15 @@ fn locate_ohuac_file(path: syn::ExprPath) -> Option<PathBuf> {
 
     ohuac_path.set_extension("ohuac");
 
+    #[cfg(feature = "debug")]
     print!("Inspecting path: {:?} ", ohuac_path);
 
     if ohuac_path.exists() {
+        #[cfg(feature = "debug")]
         println!("found!");
         Some(ohuac_path)
     } else {
+        #[cfg(feature = "debug")]
         println!("not found.");
         None
     }

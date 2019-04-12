@@ -90,6 +90,7 @@ pub fn generate_dfg(source: PathBuf, target_dir: PathBuf) -> OhuaProduction {
     };
 
     if type_output.status.success() {
+        #[cfg(feature = "debug")]
         println!("[Phase 1] Processed file {}", source.to_str().unwrap());
     } else {
         panic!(
