@@ -201,7 +201,10 @@ pub mod generate_recur {
             .map(|idx| std_ident(&format!("T{}", idx.to_string())))
             .collect();
         let ref loop_args: Vec<Ident> = (0..len)
-            .map(|idx| std_ident(&format!("loop_{}", idx.to_string())))
+            .map(|idx| std_ident(&format!("loop_in_{}", idx.to_string())))
+            .collect();
+        let ref loop_out_args: Vec<Ident> = (0..len)
+            .map(|idx| std_ident(&format!("loop_out_{}", idx.to_string())))
             .collect();
         let ref return_type = std_ident("R");
 
@@ -215,7 +218,12 @@ pub mod generate_recur {
 
         let loop_args0 = loop_args;
 
+        let loop_out_args0 = loop_out_args;
+        let loop_out_args1 = loop_out_args;
+
         let initial_args0 = initial_args;
+
+        // TODO: No tuple here!
 
         quote! {
             fn #fn_name<#(#arg_types0 : Send),*, #return_type2 : Send>
@@ -224,17 +232,22 @@ pub mod generate_recur {
                  #(#initial_args0 : &Receiver<#arg_types1>),*,
                  #(#loop_args0 : &Receiver<#arg_types2>),*,
                  ctrl_arc: &dyn ArcInput<(bool, isize)>,
-                 cont_arc: &dyn ArcInput<(#(#arg_types),*)>,
+                 #(#loop_out_args0 : &dyn ArcInput<#arg_types>),*,
                  finish_arc: &dyn ArcInput<#return_type1>,
                 ) -> Result<(), RunError>
             {
                 ctrl_arc.dispatch((true, 1));
-                cont_arc.dispatch(
+                #(#loop_out_args1.dispatch(#initial_args.recv()?));*;
+                /* cont_arc.dispatch(
                     (#(#initial_args.recv()?),*)
-                );
+                ); */
                 while (condition.recv()?) {
+                    // FIXME: Pull and discard contents from the result_arc until an upstream fix is deployed.
+                    let _ = result_arc.recv()?;
+
                     ctrl_arc.dispatch((true, 1));
-                    cont_arc.dispatch((#(#loop_args.recv()?),*));
+                    #(#loop_out_args.dispatch(#loop_args.recv()?));*;
+                    // cont_arc.dispatch((#(#loop_args.recv()?),*));
                 }
                 ctrl_arc.dispatch((false, 0));
                 finish_arc.dispatch(result_arc.recv()?);

@@ -474,7 +474,9 @@ pub fn generate_ops(compiled: &OhuaData) -> TokenStream {
                     .iter()
                     .map(|(_, id)| ToTokens::into_token_stream(id));
                 call_args.extend(c);
-            } else if op.operatorId == compiled.graph.return_arc.operator {
+            }
+
+            if op.operatorId == compiled.graph.return_arc.operator {
                 // the return_arc is the output port
                 call_args.push(quote! { result_snd });
             }
