@@ -150,8 +150,8 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
 //     }
 // }
 
-pub fn generate_nth(num: &i32, len: &i32) -> TokenStream {
-    let fn_name = Ident::new(&format!("nth_{}_{}", num, len), Span::call_site());
+pub fn generate_nth(op: &i32, num: &i32, len: &i32) -> TokenStream {
+    let fn_name = Ident::new(&format!("nth_op{}_{}_{}", op, num, len), Span::call_site());
     let ref vars: Vec<Ident> = (0..*len)
         .map(|var_idx| Ident::new(&format!("var_{}", var_idx.to_string()), Span::call_site()))
         .collect();

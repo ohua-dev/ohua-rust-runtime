@@ -843,12 +843,12 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
             (op.operatorId, idx, total)
         })
         .collect();
-    nths.sort();
+    nths.sort_unstable();
     nths.dedup();
 
     let code: Vec<TokenStream> = nths
         .iter()
-        .map(|(_, num, len)| generate_nth(num, len))
+        .map(|(op, num, len)| generate_nth(op, num, len))
         .collect();
 
     let mut direct_arcs: Vec<DirectArc> = compiled_algo.graph.arcs.direct.drain(..).collect();
@@ -885,9 +885,9 @@ fn generate_nths(compiled_algo: &mut OhuaData) -> TokenStream {
         .drain(..)
         .map(|mut op| {
             match nths.iter().find(|(id, _, _)| id == &op.operatorId) {
-                Some((_, idx, total)) => {
+                Some((op_id, idx, total)) => {
                     op.operatorType.qbNamespace = vec![];
-                    op.operatorType.qbName = format!("nth_{}_{}", idx, total);
+                    op.operatorType.qbName = format!("nth_op{}_{}_{}", op_id, idx, total);
                 }
                 None => (),
             }
