@@ -16,7 +16,6 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
     assert!(num_args != 0);
 
     let fn_name = Ident::new(&format!("ctrl_{}", num_args), Span::call_site());
-    let sfn_name = Ident::new(&format!("ctrl_sf_{}", num_args), Span::call_site());
 
     let ref vars_in: Vec<Ident> = (0..num_args)
         .map(|arg_idx| {
@@ -41,67 +40,36 @@ pub fn generate_ctrl_operator(num_args: usize) -> TokenStream {
         .map(|arg_idx| Ident::new(&format!("T{}", arg_idx.to_string()), Span::call_site()))
         .collect();
 
-    // The following block is necessary until https://github.com/dtolnay/quote/issues/8 is closed (which will hopefully happen eventually)
+    // The following block is necessary due to https://github.com/dtolnay/quote/issues/8
     let type_vars2 = type_vars;
     let type_vars3 = type_vars;
-    let type_vars4 = type_vars;
-    let type_vars5 = type_vars;
-    let type_vars6 = type_vars;
-    let type_vars7 = type_vars;
     let vars2 = vars;
-    let vars3 = vars;
-    let vars4 = vars;
-    let vars5 = vars;
-    let vars6 = vars;
     let vars_in2 = vars_in;
     let vars_in3 = vars_in;
-    let vars_in4 = vars_in;
-    let vars_in5 = vars_in;
-    let vars_in6 = vars_in;
     let vars_out2 = vars_out;
-    let vars_out3 = vars_out;
-    let vars_out4 = vars_out;
-    let vars_out5 = vars_out;
-    let vars_out6 = vars_out;
 
     quote! {
         fn #fn_name<#(#type_vars:Clone + Send),*>(
             ctrl_inp:&Receiver<(bool,isize)>,
             #(#vars_in:&Receiver<#type_vars2>),* ,
-            #(#vars_out:&dyn ArcInput<#type_vars3>),*) -> Result<(), RunError> {
-          let (renew_next_time, count) = ctrl_inp.recv()?;
-          let (#(#vars , )*) = ( #(#vars_in2.recv()? , )* );
-          for _ in 0..count {
-              #(#vars_out2.dispatch(#vars2.clone())?;)*
-          };
-          #sfn_name(ctrl_inp,
-                    #(#vars_in3),* ,
-                    #(#vars_out3),* ,
-                    renew_next_time,
-                    (#(#vars3 , )*))
-        };
+            #(#vars_out:&dyn ArcInput<#type_vars3>),*
+        ) -> Result<(), RunError> {
+            let mut renew = false;
+            let mut state = ( #(#vars_in2.recv()? , )* );
 
-        fn #sfn_name<#(#type_vars4:Clone + Send),*>(
-            ctrl_inp:&Receiver<(bool,isize)>,
-            #(#vars_in4:&Receiver<#type_vars5>),* ,
-            #(#vars_out4:&dyn ArcInput<#type_vars6>),* ,
-            renew: bool,
-            state_vars:(#(#type_vars7 , )*)) -> Result<(), RunError> {
-          let (renew_next_time, count) = ctrl_inp.recv()?;
-          let (#(#vars4,)*) = if renew {
-                          ( #(#vars_in5.recv()? , )* )
-                     } else {
-                         // reuse the captured vars
-                         state_vars
-                     };
-          for _ in 0..count {
-              #(#vars_out5.dispatch(#vars5.clone())?;)*
-          };
-          #sfn_name(ctrl_inp,
-                    #(#vars_in6),* ,
-                    #(#vars_out6),* ,
-                    renew_next_time,
-                    (#(#vars6 , )*))
+            loop {
+                let (renew_next_time, count) = ctrl_inp.recv()?;
+                if renew {
+                    state = ( #(#vars_in3.recv()? , )* );
+                }
+
+                for _ in 0..count {
+                    let (#(#vars , )*) = state.clone();
+                    #(#vars_out2.dispatch(#vars2.clone())?;)*
+                }
+
+                renew = renew_next_time;
+            }
         };
     }
 }
