@@ -658,7 +658,7 @@ pub fn generate_sfns(
         .collect();
 
     quote! {
-        let mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'static>> = Vec::new();
+        let mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send + 'static>> = Vec::new();
         #(tasks.push(Box::new(move || { #sf_codes })); )*
     }
 }
@@ -751,7 +751,6 @@ fn generate_imports(operators: &Vec<Operator>, arcs: &Vec<DirectArc>) -> TokenSt
 
     quote! {
         use std::sync::mpsc::Receiver;
-        use std::boxed::FnBox;
         use ohua_runtime::*;
         use ohua_runtime::arcs::*;
 
@@ -1174,7 +1173,7 @@ mod tests {
         //     "\nGenerated code for imports:\n{}\n",
         //     &(generated_imports.replace(";", ";\n"))
         // );
-        assert!("use std :: sync :: mpsc :: Receiver ; use std :: boxed :: FnBox ; use ohua_runtime :: * ; use ohua_runtime :: arcs :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
+        assert!("use std :: sync :: mpsc :: Receiver ; use ohua_runtime :: * ; use ohua_runtime :: arcs :: * ; use ohua_runtime :: lang :: { send_once , Unit } ; use ns1 :: some_sfn ; use ns2 :: some_other_sfn ;" == generated_imports);
 
         let generated_arcs = generate_arcs(&compiled).to_string();
         // println!("\nGenerated code for arcs:\n{}\n", &generated_arcs);
@@ -1188,7 +1187,7 @@ mod tests {
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < FnBox ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . dispatch ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . dispatch ( r ) ? ; } } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < dyn FnOnce ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( ) ; sf_0_out_0__sf_1_in_0 . dispatch ( r ) ? ; Ok ( ( ) ) } ) ) ; tasks . push ( Box :: new ( move || { loop { let r = some_other_sfn ( sf_1_in_0 . recv ( ) ? ) ; result_snd . dispatch ( r ) ? ; } } ) ) ;" == generated_sfns);
     }
 
     #[test]
@@ -1272,6 +1271,6 @@ mod tests {
         //     "Generated code for sfns:\n{}\n",
         //     &(generated_sfns.replace(";", ";\n"))
         // );
-        assert!("let mut tasks : Vec < Box < FnBox ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( arg1 ) ; ; Ok ( ( ) ) } ) ) ;" == generated_sfns);
+        assert!("let mut tasks : Vec < Box < dyn FnOnce ( ) -> Result < ( ) , RunError > + Send + 'static >> = Vec :: new ( ) ; tasks . push ( Box :: new ( move || { let r = some_sfn ( arg1 ) ; ; Ok ( ( ) ) } ) ) ;" == generated_sfns);
     }
 }

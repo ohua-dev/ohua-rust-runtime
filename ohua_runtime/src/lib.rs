@@ -1,9 +1,6 @@
-#![feature(fnbox)]
 use std::marker::Send;
 use std::sync::mpsc::{RecvError, SendError};
 use std::thread;
-
-use std::boxed::FnBox;
 
 pub mod arcs;
 pub mod lang;
@@ -30,7 +27,7 @@ impl From<RecvError> for RunError {
 /// Central function to execute an algorithm.
 ///
 /// The algorithm is provided as a set of tasks, each of which is going to be executed in a separate thread.
-pub fn run_tasks(mut tasks: Vec<Box<FnBox() -> Result<(), RunError> + Send + 'static>>) -> () {
+pub fn run_tasks(mut tasks: Vec<Box<dyn FnOnce() -> Result<(), RunError> + Send + 'static>>) -> () {
     let mut handles = Vec::with_capacity(tasks.len());
     for task in tasks.drain(..) {
         handles.push(thread::spawn(move || {

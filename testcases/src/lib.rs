@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, fnbox)]
+#![feature(proc_macro_hygiene)]
 #![allow(dead_code, unused_imports)]
 
 extern crate ohua_codegen;
