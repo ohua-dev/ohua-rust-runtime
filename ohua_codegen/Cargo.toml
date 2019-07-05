@@ -2,7 +2,7 @@
 name = "ohua_codegen"
 version = "0.1.0"
 authors = ["Felix Wittwer <dev@felixwittwer.de>", "Sebastian Ertel <sebastian.ertel@gmail.com>"]
-#edition = "2015"
+edition = "2018"
 
 [dependencies]
 serde = "1.0"

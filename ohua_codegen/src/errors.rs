@@ -11,7 +11,7 @@ pub enum TypeExtractionError {
 
 impl fmt::Display for TypeExtractionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use TypeExtractionError::*;
+        use crate::TypeExtractionError::*;
         match *self {
             IOError(ref err) => write!(f, "a filesystem related error occured: {}", err),
             ParsingError(ref err) => write!(f, "could not parse file: {}", err),

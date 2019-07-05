@@ -26,14 +26,14 @@ mod ohuac;
 mod parse;
 mod typedgen;
 
-use errors::*;
-use ohua_types::OhuaData;
-use parse::parse_ohua_call;
+use crate::errors::*;
+use crate::ohua_types::OhuaData;
+use crate::parse::parse_ohua_call;
 use std::env::current_dir;
 use std::fs::File;
 use std::path::PathBuf;
 use tempdir::TempDir;
-use typedgen::*;
+use crate::typedgen::*;
 
 use self::proc_macro::TokenStream;
 use syn::export::ToTokens;

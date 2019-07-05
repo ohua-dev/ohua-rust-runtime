@@ -1,9 +1,9 @@
 #![allow(unused_doc_comments)]
-use backend_optimizations::run_backend_optimizations;
-use lang::{generate_ctrl_operator, generate_nth};
-use ohua_types::ArcSource::{Env, Local};
-use ohua_types::Envs::*;
-use ohua_types::*;
+use crate::backend_optimizations::run_backend_optimizations;
+use crate::lang::{generate_ctrl_operator, generate_nth};
+use crate::ohua_types::ArcSource::{Env, Local};
+use crate::ohua_types::Envs::*;
+use crate::ohua_types::*;
 
 use std::collections::BTreeSet;
 
@@ -904,8 +904,8 @@ mod generate_recur {
     extern crate bit_set;
 
     use self::bit_set::BitSet;
-    use lang::generate_recur;
-    use ohua_types::*;
+    use crate::lang::generate_recur;
+    use crate::ohua_types::*;
     use proc_macro2::TokenStream;
 
     type OpId = i32;
@@ -1096,14 +1096,14 @@ pub fn generate_code(
 mod tests {
 
     use super::*;
-    use parse::tests::parse_call;
+    use crate::parse::tests::parse_call;
 
-    use ohua_types::ArcIdentifier;
-    use ohua_types::ArcSource;
-    use ohua_types::DFGraph;
-    use ohua_types::OhuaData;
-    use ohua_types::Operator;
-    use ohua_types::OperatorType;
+    use crate::ohua_types::ArcIdentifier;
+    use crate::ohua_types::ArcSource;
+    use crate::ohua_types::DFGraph;
+    use crate::ohua_types::OhuaData;
+    use crate::ohua_types::Operator;
+    use crate::ohua_types::OperatorType;
 
     fn producer_consumer(
         prod: OperatorType,
