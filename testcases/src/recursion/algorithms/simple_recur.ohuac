@@ -1,6 +1,6 @@
 ns simple_recur;
 
-use sf recursion::sfs::{lt, plus};
+use sf crate::recursion::sfs::{lt, plus};
 
 fn go (n:i32) -> i32 {
    let go0 = | n0 | { let next = plus(n0,3); if (lt(n0, 10)) { go0(next) } else { n0 }};

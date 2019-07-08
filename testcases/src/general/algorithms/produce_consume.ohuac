@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf general::produce_consume::{produce, consume};
+use sf crate::general::produce_consume::{produce, consume};
 
 fn main() {
     let result = produce();

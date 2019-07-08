@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf main_arguments::mainclone::{double, triple};
+use sf crate::main_arguments::mainclone::{double, triple};
 
 fn main(arg: i32) -> i32 {
     let res = double(arg);

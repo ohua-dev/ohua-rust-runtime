@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf main_arguments::house::{move_house, move_in_one, move_in_one_more, evict_one, house_information};
+use sf crate::main_arguments::house::{move_house, move_in_one, move_in_one_more, evict_one, house_information};
 
 fn main(house: House, target_address: String, humans: Vec<Human>) -> House {
     let house_moved = move_house(house, target_address);

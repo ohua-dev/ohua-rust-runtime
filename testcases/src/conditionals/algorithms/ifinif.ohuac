@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf conditionals::iftest::{modify_string_positive, modify_string_negative, get_ctrl_input, get_another_ctrl_input, get_input};
+use sf crate::conditionals::iftest::{modify_string_positive, modify_string_negative, get_ctrl_input, get_another_ctrl_input, get_input};
 
 fn main() -> String {
     let ctrl = get_ctrl_input();

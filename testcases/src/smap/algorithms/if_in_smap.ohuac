@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf smap::smap_fns::{generate_value, generate_data, calculate, is_even};
+use sf crate::smap::smap_fns::{generate_value, generate_data, calculate, is_even};
 
 fn main() -> Vec<i32> {
     let x = generate_value();

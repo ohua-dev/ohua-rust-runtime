@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf conditionals::iftest::{get_ctrl_input, get_vec_input, times_2};
+use sf crate::conditionals::iftest::{get_ctrl_input, get_vec_input, times_2};
 
 fn main() -> Vec<i32> {
     let cond = get_ctrl_input();

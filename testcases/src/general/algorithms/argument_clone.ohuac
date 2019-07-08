@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf general::strings::{gen_string, count_strings};
+use sf crate::general::strings::{gen_string, count_strings};
 
 fn main() {
     let res = gen_string();

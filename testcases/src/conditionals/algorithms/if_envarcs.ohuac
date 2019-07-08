@@ -1,6 +1,6 @@
 ns some_ns;
 
-use sf conditionals::iftest::{modify_string_positive, modify_string_negative};
+use sf crate::conditionals::iftest::{modify_string_positive, modify_string_negative};
 
 fn main(ctrl: bool, inp: String) -> String {
     if (ctrl) {
